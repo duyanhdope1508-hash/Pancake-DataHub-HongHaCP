@@ -19,6 +19,7 @@ def test_frontend_has_search_filters_and_dialog() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
     for element_id in (
         'id="filterForm"',
+        'id="systemStateText"',
         'id="searchInput"',
         'id="shopFilter"',
         'id="pageFilter"',

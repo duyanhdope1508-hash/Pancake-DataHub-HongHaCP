@@ -18,6 +18,7 @@ const elements = {
   totalShops: document.querySelector("#totalShops"),
   totalPages: document.querySelector("#totalPages"),
   totalStatuses: document.querySelector("#totalStatuses"),
+  systemStateText: document.querySelector("#systemStateText"),
   previousPage: document.querySelector("#previousPage"),
   nextPage: document.querySelector("#nextPage"),
   pageIndicator: document.querySelector("#pageIndicator"),
@@ -116,6 +117,20 @@ async function loadFilters() {
       `${text(status.status_name, `Mã ${status.status}`)} · ${integerFormatter.format(status.order_count)}`,
     );
   }
+}
+
+async function loadSystemStatus() {
+  const data = await fetchJson("/api/system-status");
+  const latest = data.latest_sync;
+  if (!latest) {
+    elements.systemStateText.textContent = "Chưa có lần đồng bộ";
+    return;
+  }
+  if (latest.status !== "success") {
+    elements.systemStateText.textContent = "Cần kiểm tra đồng bộ";
+    return;
+  }
+  elements.systemStateText.textContent = `Đồng bộ ${formatDate(latest.finished_at)}`;
 }
 
 function orderRow(order) {
@@ -278,7 +293,7 @@ elements.orderDialog.addEventListener("click", (event) => {
 
 async function initialize() {
   try {
-    await loadFilters();
+    await Promise.all([loadFilters(), loadSystemStatus()]);
     await loadOrders();
   } catch (error) {
     showError(`Không thể khởi tạo cổng tra cứu. ${error.message}`);
@@ -286,3 +301,8 @@ async function initialize() {
 }
 
 initialize();
+window.setInterval(() => {
+  loadSystemStatus().catch(() => {
+    elements.systemStateText.textContent = "Không kiểm tra được đồng bộ";
+  });
+}, 60_000);

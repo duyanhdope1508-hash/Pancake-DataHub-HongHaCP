@@ -10,6 +10,7 @@ from app.db import SessionLocal, init_db
 from app.order_detail import AmbiguousOrderError, OrderNotFoundError, get_order_detail
 from app.order_filters import order_filters
 from app.search import search_orders
+from app.status import database_status
 
 
 @asynccontextmanager
@@ -52,6 +53,11 @@ def health() -> dict[str, str]:
     with SessionLocal() as session:
         session.execute(text("SELECT 1"))
     return {"status": "ok"}
+
+
+@app.get("/api/system-status")
+def system_status() -> dict:
+    return database_status()
 
 
 @app.get("/api/orders")
