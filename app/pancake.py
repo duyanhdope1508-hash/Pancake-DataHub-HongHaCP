@@ -57,7 +57,10 @@ class PancakeClient:
         request_params["api_key"] = self._api_key
 
         for attempt in range(4):
-            response = await self._client.get(path, params=request_params)
+            try:
+                response = await self._client.get(path, params=request_params)
+            except httpx.RequestError as exc:
+                raise PancakeApiError("Could not connect to the Pancake API") from exc
             if response.status_code < 400:
                 try:
                     return response.json()
