@@ -49,7 +49,9 @@ def main() -> None:
     args = parser.parse_args()
 
     project_root = Path(__file__).resolve().parents[1]
-    api_key = getpass.getpass("Paste the Pancake POS API key (input is hidden): ")
+    print("Paste or type the Pancake POS API key, then press Enter.")
+    print("For security, no characters or asterisks will appear while you enter it.")
+    api_key = getpass.getpass("API key (hidden input): ")
     write_env(project_root, api_key, force=args.force)
     print(".env created locally. The file is excluded from Git.")
 
