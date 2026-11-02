@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
+    <title>Pancake Data Hub</title>
+    <link rel="stylesheet" href="/assets/styles.css?v=2" />
+    <script src="/assets/app.js?v=1" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand-mark" aria-hidden="true">PD</div>
+        <div class="brand-copy">
+          <p class="eyebrow">HONG HA · INTERNAL</p>
+          <h1>Pancake Data Hub</h1>
+        </div>
+        <div class="system-state">
+          <span class="state-dot" aria-hidden="true"></span>
+          Dữ liệu nội bộ
+        </div>
+      </header>
+
+      <main>
+        <section class="hero" aria-labelledby="page-title">
+          <div>
+            <p class="section-kicker">Tra cứu tập trung</p>
+            <h2 id="page-title">Đơn hàng từ mọi page, trong một nơi.</h2>
+            <p class="hero-copy">
+              Tìm theo mã đơn, tên khách hoặc số điện thoại. Thông tin nhạy cảm được
+              giới hạn trong giao diện nội bộ.
+            </p>
+          </div>
+          <div class="summary-grid" aria-label="Tổng quan dữ liệu">
+            <article class="summary-card">
+              <span>Tổng đơn</span>
+              <strong id="totalOrders">—</strong>
+            </article>
+            <article class="summary-card">
+              <span>Page</span>
+              <strong id="totalPages">—</strong>
+            </article>
+            <article class="summary-card">
+              <span>Trạng thái</span>
+              <strong id="totalStatuses">—</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="workspace" aria-labelledby="orders-heading">
+          <div class="workspace-heading">
+            <div>
+              <p class="section-kicker">Danh sách</p>
+              <h2 id="orders-heading">Đơn hàng</h2>
+            </div>
+            <span id="resultCount" class="result-count">Đang tải…</span>
+          </div>
+
+          <form id="filterForm" class="filters" role="search">
+            <label class="search-field">
+              <span class="sr-only">Tìm kiếm</span>
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="m21 21-4.3-4.3m2.3-5.2A7.5 7.5 0 1 1 4 11.5a7.5 7.5 0 0 1 15 0Z" />
+              </svg>
+              <input id="searchInput" type="search" maxlength="100" placeholder="Mã đơn, tên khách, số điện thoại…" />
+            </label>
+
+            <label>
+              <span class="sr-only">Page</span>
+              <select id="pageFilter">
+                <option value="">Tất cả page</option>
+              </select>
+            </label>
+
+            <label>
+              <span class="sr-only">Trạng thái</span>
+              <select id="statusFilter">
+                <option value="">Tất cả trạng thái</option>
+              </select>
+            </label>
+
+            <button class="primary-button" type="submit">Tìm kiếm</button>
+          </form>
+
+          <div id="errorBanner" class="error-banner" role="alert" hidden></div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Đơn hàng</th>
+                  <th scope="col">Khách hàng</th>
+                  <th scope="col">Page</th>
+                  <th scope="col">Trạng thái</th>
+                  <th scope="col" class="align-right">Giá trị</th>
+                  <th scope="col">Cập nhật</th>
+                  <th scope="col"><span class="sr-only">Thao tác</span></th>
+                </tr>
+              </thead>
+              <tbody id="ordersBody"></tbody>
+            </table>
+            <div id="emptyState" class="empty-state" hidden>
+              <strong>Không tìm thấy đơn hàng</strong>
+              <span>Hãy thử từ khóa hoặc bộ lọc khác.</span>
+            </div>
+          </div>
+
+          <nav class="pagination" aria-label="Phân trang">
+            <button id="previousPage" class="secondary-button" type="button">← Trang trước</button>
+            <span id="pageIndicator">Trang — / —</span>
+            <button id="nextPage" class="secondary-button" type="button">Trang sau →</button>
+          </nav>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="orderDialog" aria-labelledby="dialogTitle">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Chi tiết đơn</p>
+          <h2 id="dialogTitle">Đang tải…</h2>
+        </div>
+        <button id="closeDialog" class="icon-button" type="button" aria-label="Đóng">×</button>
+      </div>
+      <div id="dialogContent" class="dialog-content"></div>
+    </dialog>
+  </body>
+</html>

@@ -1,6 +1,9 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
 from app.db import SessionLocal, init_db
@@ -22,6 +25,26 @@ app = FastAPI(
     redoc_url=None,
     lifespan=lifespan,
 )
+
+frontend_dir = Path(__file__).resolve().parents[1] / "frontend"
+app.mount("/assets", StaticFiles(directory=frontend_dir), name="assets")
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self'; style-src 'self'; "
+        "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
+    )
+    return response
+
+
+@app.get("/", include_in_schema=False)
+def portal() -> FileResponse:
+    return FileResponse(frontend_dir / "index.html")
 
 
 @app.get("/health")
