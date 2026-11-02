@@ -1,9 +1,10 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, HTTPException, Query
 from sqlalchemy import text
 
 from app.db import SessionLocal, init_db
+from app.order_detail import AmbiguousOrderError, OrderNotFoundError, get_order_detail
 from app.order_filters import order_filters
 from app.search import search_orders
 
@@ -53,4 +54,21 @@ def orders(
 def filters() -> dict:
     with SessionLocal() as session:
         return order_filters(session)
+
+
+@app.get("/api/orders/{order_id}")
+def order_detail(
+    order_id: str,
+    shop_id: str | None = Query(default=None, max_length=64),
+) -> dict:
+    with SessionLocal() as session:
+        try:
+            return get_order_detail(session, order_id=order_id, shop_id=shop_id)
+        except OrderNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Order not found") from exc
+        except AmbiguousOrderError as exc:
+            raise HTTPException(
+                status_code=409,
+                detail="Order ID exists in multiple shops; provide shop_id",
+            ) from exc
 
