@@ -20,6 +20,7 @@ def build_env(api_key: str, database_password: str) -> str:
             "PANCAKE_CONNECTORS_FILE=secrets/pancake_connectors.json",
             "PANCAKE_PAGE_SIZE=100",
             "PANCAKE_MAX_PAGES=1",
+            "PANCAKE_SYNC_INTERVAL_SECONDS=300",
             "",
         ]
     )

@@ -27,6 +27,7 @@ services:
       PANCAKE_CONNECTORS_FILE: ${PANCAKE_CONNECTORS_FILE:-secrets/pancake_connectors.json}
       PANCAKE_PAGE_SIZE: ${PANCAKE_PAGE_SIZE:-100}
       PANCAKE_MAX_PAGES: ${PANCAKE_MAX_PAGES:-1}
+      PANCAKE_SYNC_INTERVAL_SECONDS: ${PANCAKE_SYNC_INTERVAL_SECONDS:-300}
     volumes:
       - ./secrets:/app/secrets:ro
     ports:
@@ -35,6 +36,25 @@ services:
       db:
         condition: service_healthy
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+  worker:
+    build: .
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-pancake_app}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-pancake_data}
+      PANCAKE_API_BASE_URL: ${PANCAKE_API_BASE_URL:-https://pos.pages.fm/api/v1}
+      PANCAKE_API_KEY: ${PANCAKE_API_KEY:-}
+      PANCAKE_SHOP_IDS: ${PANCAKE_SHOP_IDS:-}
+      PANCAKE_CONNECTORS_FILE: ${PANCAKE_CONNECTORS_FILE:-secrets/pancake_connectors.json}
+      PANCAKE_PAGE_SIZE: ${PANCAKE_PAGE_SIZE:-100}
+      PANCAKE_MAX_PAGES: ${PANCAKE_MAX_PAGES:-1}
+      PANCAKE_SYNC_INTERVAL_SECONDS: ${PANCAKE_SYNC_INTERVAL_SECONDS:-300}
+    volumes:
+      - ./secrets:/app/secrets:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["python", "-m", "app.worker"]
 
 volumes:
   postgres_data:

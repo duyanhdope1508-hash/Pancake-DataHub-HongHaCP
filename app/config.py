@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     pancake_connectors_file: Path = Path("secrets/pancake_connectors.json")
     pancake_page_size: int = Field(default=100, ge=1, le=100)
     pancake_max_pages: int = Field(default=1, ge=1, le=100_000)
+    pancake_sync_interval_seconds: int = Field(default=300, ge=30, le=86_400)
 
     @property
     def shop_allowlist(self) -> set[str]:
