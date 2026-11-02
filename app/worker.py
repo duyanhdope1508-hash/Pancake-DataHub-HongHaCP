@@ -32,11 +32,18 @@ async def run_forever(settings: Settings) -> None:
         await asyncio.sleep(settings.pancake_sync_interval_seconds)
 
 
-def main() -> None:
+def configure_logging() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
+    # Pancake authenticates through a query parameter. httpx's INFO request log
+    # includes the complete URL, so keep it disabled to prevent credential leaks.
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
+def main() -> None:
+    configure_logging()
     asyncio.run(run_forever(get_settings()))
 
 
