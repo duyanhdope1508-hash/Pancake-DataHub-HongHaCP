@@ -1,4 +1,5 @@
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -13,6 +14,7 @@ class Settings(BaseSettings):
     pancake_api_base_url: str = "https://pos.pages.fm/api/v1"
     pancake_api_key: str = ""
     pancake_shop_ids: str = ""
+    pancake_connectors_file: Path = Path("secrets/pancake_connectors.json")
     pancake_page_size: int = Field(default=100, ge=1, le=100)
     pancake_max_pages: int = Field(default=1, ge=1, le=100_000)
 

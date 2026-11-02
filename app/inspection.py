@@ -1,6 +1,7 @@
 from typing import Any
 
 from app.config import Settings
+from app.connectors import load_connectors
 from app.pancake import PancakeClient
 
 ID_FIELD_CANDIDATES = ("id", "order_id", "source_order_id")
@@ -30,32 +31,32 @@ def _shop_name(shop: dict[str, Any], shop_id: str) -> str:
 
 
 async def inspect_orders(settings: Settings) -> dict[str, Any]:
-    allowlist = settings.shop_allowlist
     summaries: list[dict[str, Any]] = []
+    for connector in load_connectors(settings):
+        async with PancakeClient(
+            settings.pancake_api_base_url, connector.api_key
+        ) as client:
+            shops = await client.list_shops()
+            for shop in shops:
+                shop_id = _shop_id(shop)
+                if not shop_id or (connector.shop_ids and shop_id not in connector.shop_ids):
+                    continue
 
-    async with PancakeClient(
-        settings.pancake_api_base_url, settings.require_pancake_key()
-    ) as client:
-        shops = await client.list_shops()
-        for shop in shops:
-            shop_id = _shop_id(shop)
-            if not shop_id or (allowlist and shop_id not in allowlist):
-                continue
-
-            orders = await client.list_orders(
-                shop_id,
-                page_number=1,
-                page_size=min(settings.pancake_page_size, 5),
-            )
-            summaries.append(
-                {
-                    "shop_id": shop_id,
-                    "shop_name": _shop_name(shop, shop_id),
-                    **summarize_records(orders),
-                }
-            )
+                orders = await client.list_orders(
+                    shop_id,
+                    page_number=1,
+                    page_size=min(settings.pancake_page_size, 5),
+                )
+                summaries.append(
+                    {
+                        "connector": connector.name,
+                        "shop_id": shop_id,
+                        "shop_name": _shop_name(shop, shop_id),
+                        **summarize_records(orders),
+                    }
+                )
 
     if not summaries:
-        raise RuntimeError("No shop matched PANCAKE_SHOP_IDS")
+        raise RuntimeError("No shop matched the configured connectors")
     return {"success": True, "shops": summaries}
 

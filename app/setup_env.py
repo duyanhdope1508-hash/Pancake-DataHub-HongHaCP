@@ -17,6 +17,7 @@ def build_env(api_key: str, database_password: str) -> str:
             "PANCAKE_API_BASE_URL=https://pos.pages.fm/api/v1",
             f"PANCAKE_API_KEY={api_key}",
             "PANCAKE_SHOP_IDS=",
+            "PANCAKE_CONNECTORS_FILE=secrets/pancake_connectors.json",
             "PANCAKE_PAGE_SIZE=100",
             "PANCAKE_MAX_PAGES=1",
             "",

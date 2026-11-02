@@ -13,14 +13,12 @@ from app.transform import transform_raw_orders
 async def _run(command: str) -> None:
     settings = get_settings()
     if command == "probe":
-        shops = await probe(settings)
-        print(json.dumps({"success": True, "shops": shops}, ensure_ascii=False, indent=2))
+        print(json.dumps(await probe(settings), ensure_ascii=False, indent=2))
         return
 
     if command == "sync":
         init_db()
-        result = await sync_all(settings)
-        print(json.dumps({"success": True, **result}, ensure_ascii=False, indent=2))
+        print(json.dumps(await sync_all(settings), ensure_ascii=False, indent=2))
         return
 
     if command == "inspect-orders":

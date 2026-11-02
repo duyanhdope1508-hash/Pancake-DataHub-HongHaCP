@@ -14,6 +14,16 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261102_002_add_sync_connector_name",
+        (
+            "ALTER TABLE sync_runs ADD COLUMN IF NOT EXISTS connector_name VARCHAR(128)",
+            (
+                "CREATE INDEX IF NOT EXISTS ix_sync_runs_connector_started "
+                "ON sync_runs (connector_name, started_at)"
+            ),
+        ),
+    ),
 )
 
 

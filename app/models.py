@@ -43,6 +43,7 @@ class SyncRun(Base):
     id: Mapped[str] = mapped_column(
         String(36), primary_key=True, default=lambda: str(uuid4())
     )
+    connector_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     shop_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
     rows_seen: Mapped[int] = mapped_column(Integer, nullable=False, default=0)

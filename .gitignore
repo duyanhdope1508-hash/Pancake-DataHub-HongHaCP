@@ -1,4 +1,6 @@
 .env
+secrets/*.json
+!secrets/*.example.json
 .venv/
 __pycache__/
 *.py[cod]

@@ -30,6 +30,7 @@ def database_status() -> dict[str, Any]:
         if latest_run:
             latest = {
                 "id": latest_run.id,
+                "connector": latest_run.connector_name,
                 "shop_id": latest_run.shop_id,
                 "status": latest_run.status,
                 "rows_seen": latest_run.rows_seen,
