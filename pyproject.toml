@@ -6,7 +6,6 @@ build-backend = "setuptools.build_meta"
 name = "pancake-data-hub"
 version = "0.1.0"
 description = "Central data hub for Pancake POS shops"
-readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115,<1",
