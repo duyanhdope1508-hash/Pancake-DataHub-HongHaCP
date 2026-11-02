@@ -42,6 +42,7 @@ def search_orders(
         escaped_query = escape_like(clean_query)
         search_conditions = [
             CoreOrder.source_order_id.ilike(f"%{escaped_query}%", escape="\\"),
+            CoreOrder.tracking_code.ilike(f"%{escaped_query}%", escape="\\"),
             CoreCustomer.name.ilike(f"%{escaped_query}%", escape="\\"),
         ]
         normalized_query = normalize_phone(clean_query)
@@ -78,6 +79,8 @@ def search_orders(
                 "page_name": order.page_name,
                 "status": order.status,
                 "status_name": order.status_name,
+                "tracking_code": order.tracking_code,
+                "delivery_status": order.delivery_status,
                 "total_price": order.total_price,
                 "total_quantity": order.total_quantity,
                 "currency": order.currency,

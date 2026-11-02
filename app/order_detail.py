@@ -15,6 +15,15 @@ class AmbiguousOrderError(LookupError):
     pass
 
 
+def receipt_status(status_name: str | None) -> str:
+    return {
+        "delivered": "received",
+        "returning": "returning",
+        "returned": "returned",
+        "canceled": "canceled",
+    }.get(status_name or "", "pending")
+
+
 def serialize_order_detail(
     order: CoreOrder,
     customer: CoreCustomer | None,
@@ -32,6 +41,21 @@ def serialize_order_detail(
         "currency": order.currency,
         "inserted_at": order.inserted_at,
         "updated_at": order.source_updated_at,
+        "shipping": {
+            "recipient_name": order.shipping_name,
+            "phone_masked": mask_phone(order.shipping_phone),
+            "address": order.shipping_address,
+            "tracking_code": order.tracking_code,
+            "tracking_link": order.tracking_link,
+            "shipping_fee": order.shipping_fee,
+            "carrier_name": order.carrier_name,
+            "delivery_status": order.delivery_status,
+            "sent_to_carrier": bool(order.sent_to_carrier_at),
+            "sent_to_carrier_at": order.sent_to_carrier_at,
+            "receipt_status": receipt_status(order.status_name),
+            "returned_reason": order.returned_reason,
+            "return_fee": order.return_fee,
+        },
         "customer": {
             "name": customer.name if customer else None,
             "phone_masked": mask_phone(customer.primary_phone) if customer else None,

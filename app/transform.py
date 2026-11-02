@@ -98,6 +98,7 @@ def transform_raw_orders() -> dict[str, int]:
                 if isinstance(payload.get("shipping_address"), dict)
                 else {}
             )
+            partner = payload.get("partner") if isinstance(payload.get("partner"), dict) else {}
             full_address = (
                 shipping.get("new_full_address")
                 or shipping.get("full_address")
@@ -120,6 +121,28 @@ def transform_raw_orders() -> dict[str, int]:
                 "shipping_name": _string(shipping.get("full_name")),
                 "shipping_phone": _string(shipping.get("phone_number")),
                 "shipping_address": _string(full_address),
+                "tracking_code": (
+                    _string(partner.get("extend_code"))
+                    or _string(partner.get("order_number_vtp"))
+                    or _string(partner.get("order_id_ghn"))
+                    or _string(partner.get("custom_partner_id"))
+                ),
+                "tracking_link": _string(payload.get("tracking_link")),
+                "shipping_fee": parse_decimal(payload.get("shipping_fee")),
+                "carrier_name": (
+                    _string(partner.get("partner_name"))
+                    or _string(partner.get("service_partner"))
+                ),
+                "delivery_status": _string(partner.get("partner_status")),
+                "sent_to_carrier_at": (
+                    parse_datetime(payload.get("time_send_partner"))
+                    or parse_datetime(partner.get("picked_up_at"))
+                ),
+                "returned_reason": (
+                    _string(payload.get("returned_reason_name"))
+                    or _string(payload.get("returned_reason"))
+                ),
+                "return_fee": parse_decimal(payload.get("return_fee")),
             }
             session.execute(
                 insert(CoreOrder)

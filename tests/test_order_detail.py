@@ -1,9 +1,9 @@
 from types import SimpleNamespace
 
-from app.order_detail import serialize_order_detail
+from app.order_detail import receipt_status, serialize_order_detail
 
 
-def test_order_detail_masks_phone_and_omits_address() -> None:
+def test_order_detail_masks_phone_and_includes_fulfillment_data() -> None:
     order = SimpleNamespace(
         shop_id="shop-1",
         source_order_id="order-1",
@@ -16,6 +16,17 @@ def test_order_detail_masks_phone_and_omits_address() -> None:
         currency="VND",
         inserted_at=None,
         source_updated_at=None,
+        shipping_name="Receiver",
+        shipping_phone="0987654321",
+        shipping_address="Hanoi",
+        tracking_code="TRACK-1",
+        tracking_link="https://tracking.example/TRACK-1",
+        shipping_fee=30_000,
+        carrier_name="Carrier",
+        delivery_status="on_the_way",
+        sent_to_carrier_at=None,
+        returned_reason=None,
+        return_fee=0,
     )
     customer = SimpleNamespace(name="Customer", primary_phone="0912345678")
     items = [
@@ -32,7 +43,17 @@ def test_order_detail_masks_phone_and_omits_address() -> None:
     result = serialize_order_detail(order, customer, items)
 
     assert result["customer"]["phone_masked"] == "******5678"
-    assert "shipping_address" not in result
+    assert result["shipping"]["address"] == "Hanoi"
+    assert result["shipping"]["phone_masked"] == "******4321"
+    assert result["shipping"]["tracking_code"] == "TRACK-1"
     assert "primary_phone" not in str(result)
     assert result["items"][0]["product_name"] == "Product"
+
+
+def test_receipt_status_follows_final_order_state() -> None:
+    assert receipt_status("delivered") == "received"
+    assert receipt_status("returning") == "returning"
+    assert receipt_status("returned") == "returned"
+    assert receipt_status("canceled") == "canceled"
+    assert receipt_status("shipped") == "pending"
 

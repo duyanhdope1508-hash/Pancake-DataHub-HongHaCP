@@ -24,6 +24,27 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261102_003_add_order_fulfillment_fields",
+        (
+            "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS tracking_code VARCHAR(255)",
+            "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS tracking_link TEXT",
+            "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS shipping_fee NUMERIC(18, 2)",
+            "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS carrier_name TEXT",
+            "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS delivery_status VARCHAR(128)",
+            "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS sent_to_carrier_at TIMESTAMPTZ",
+            "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS returned_reason TEXT",
+            "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS return_fee NUMERIC(18, 2)",
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_tracking_code "
+                "ON core_orders (tracking_code)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_delivery_status "
+                "ON core_orders (shop_id, delivery_status)"
+            ),
+        ),
+    ),
 )
 
 

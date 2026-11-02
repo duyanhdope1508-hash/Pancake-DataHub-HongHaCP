@@ -204,14 +204,25 @@ async function loadOrders() {
   }
 }
 
-function detailField(label, value) {
-  const field = createElement("div", "detail-field");
+function detailField(label, value, className = "") {
+  const field = createElement("div", `detail-field ${className}`.trim());
   field.append(createElement("span", "", label), createElement("strong", "", value));
   return field;
 }
 
+function receiptStatusLabel(value) {
+  return {
+    received: "Đã nhận",
+    returning: "Đang hoàn",
+    returned: "Đã hoàn",
+    canceled: "Đã hủy",
+    pending: "Chưa nhận",
+  }[value] || text(value);
+}
+
 function renderOrderDetail(order) {
   elements.dialogTitle.textContent = text(order.order_id);
+  const shipping = order.shipping || {};
   const grid = createElement("div", "detail-grid");
   grid.append(
     detailField("Khách hàng", order.customer?.name),
@@ -220,6 +231,17 @@ function renderOrderDetail(order) {
     detailField("Trạng thái", order.status_name || `Mã ${order.status}`),
     detailField("Giá trị", formatMoney(order.total_price, order.currency)),
     detailField("Cập nhật", formatDate(order.updated_at)),
+    detailField("Mã vận đơn", shipping.tracking_code),
+    detailField("Đơn vị vận chuyển", shipping.carrier_name),
+    detailField("Phí vận chuyển", formatMoney(shipping.shipping_fee, order.currency)),
+    detailField("Gửi vận chuyển", shipping.sent_to_carrier ? "Đã gửi" : "Chưa gửi"),
+    detailField("Trạng thái giao hàng", shipping.delivery_status),
+    detailField("Kết quả nhận hàng", receiptStatusLabel(shipping.receipt_status)),
+    detailField("Người nhận", shipping.recipient_name),
+    detailField("SĐT nhận hàng", shipping.phone_masked),
+    detailField("Phí hoàn", formatMoney(shipping.return_fee, order.currency)),
+    detailField("Địa chỉ", shipping.address, "detail-field-wide"),
+    detailField("Lý do hoàn / hủy", shipping.returned_reason, "detail-field-wide"),
   );
 
   const heading = createElement("h3", "items-heading", `Sản phẩm · ${order.items.length}`);

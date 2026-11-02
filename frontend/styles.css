@@ -485,6 +485,15 @@ dialog::backdrop {
   font-size: 14px;
 }
 
+.detail-field-wide {
+  grid-column: 1 / -1;
+}
+
+.detail-field-wide strong {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
 .items-heading {
   margin: 0 0 10px;
   font-size: 15px;
