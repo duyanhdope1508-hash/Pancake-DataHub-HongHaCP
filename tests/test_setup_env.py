@@ -9,6 +9,7 @@ def test_build_env_contains_required_settings() -> None:
     content = build_env("secret-api-key", "database-password")
     assert "PANCAKE_API_KEY=secret-api-key" in content
     assert "POSTGRES_PASSWORD=database-password" in content
+    assert "@127.0.0.1:5432/pancake_data" in content
     assert "PANCAKE_API_BASE_URL=https://pos.pages.fm/api/v1" in content
 
 

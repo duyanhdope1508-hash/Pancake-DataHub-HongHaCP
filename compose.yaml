@@ -20,7 +20,7 @@ services:
     build: .
     restart: unless-stopped
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://pancake_app:change_this_password@db:5432/pancake_data}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-pancake_app}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@db:5432/${POSTGRES_DB:-pancake_data}
       PANCAKE_API_BASE_URL: ${PANCAKE_API_BASE_URL:-https://pos.pages.fm/api/v1}
       PANCAKE_API_KEY: ${PANCAKE_API_KEY:-}
       PANCAKE_SHOP_IDS: ${PANCAKE_SHOP_IDS:-}

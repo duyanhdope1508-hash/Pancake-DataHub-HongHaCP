@@ -12,7 +12,7 @@ def build_env(api_key: str, database_password: str) -> str:
             f"POSTGRES_PASSWORD={database_password}",
             (
                 "DATABASE_URL=postgresql+psycopg://"
-                f"pancake_app:{database_password}@db:5432/pancake_data"
+                f"pancake_app:{database_password}@127.0.0.1:5432/pancake_data"
             ),
             "PANCAKE_API_BASE_URL=https://pos.pages.fm/api/v1",
             f"PANCAKE_API_KEY={api_key}",
