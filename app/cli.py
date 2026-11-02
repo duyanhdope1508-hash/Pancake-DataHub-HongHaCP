@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import json
+import sys
 
 from app.config import get_settings
 from app.db import init_db
@@ -40,6 +41,8 @@ async def _run(command: str) -> None:
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="Pancake POS ingestion utility")
     parser.add_argument(
         "command", choices=["probe", "inspect-orders", "status", "sync", "transform"]

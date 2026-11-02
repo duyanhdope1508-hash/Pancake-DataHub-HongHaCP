@@ -1,3 +1,4 @@
+import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
@@ -105,7 +106,7 @@ async def sync_all(settings: Settings) -> dict[str, Any]:
                         session.commit()
 
                         try:
-                            page_number = 1
+                            page_number = settings.pancake_start_page
                             while page_number <= settings.pancake_max_pages:
                                 orders = await client.list_orders(
                                     shop_id,
@@ -170,6 +171,15 @@ async def sync_all(settings: Settings) -> dict[str, Any]:
                             run.status = "success"
                             run.finished_at = datetime.now(UTC)
                             session.commit()
+                        except asyncio.CancelledError:
+                            session.rollback()
+                            cancelled_run = session.get(SyncRun, run.id)
+                            if cancelled_run:
+                                cancelled_run.status = "cancelled"
+                                cancelled_run.error = "Sync interrupted by operator"
+                                cancelled_run.finished_at = datetime.now(UTC)
+                                session.commit()
+                            raise
                         except Exception as exc:  # noqa: BLE001 - isolate shop failures
                             session.rollback()
                             failed_run = session.get(SyncRun, run.id)
@@ -198,6 +208,7 @@ async def sync_all(settings: Settings) -> dict[str, Any]:
         "pages_processed": total_pages,
         "rows_seen": total_seen,
         "rows_written": total_written,
+        "start_page": settings.pancake_start_page,
         "page_limit": settings.pancake_max_pages,
         "errors": errors,
     }
