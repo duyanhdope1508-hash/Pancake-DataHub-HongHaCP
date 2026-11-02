@@ -11,6 +11,7 @@ def test_build_env_contains_required_settings() -> None:
     assert "POSTGRES_PASSWORD=database-password" in content
     assert "@127.0.0.1:15432/pancake_data" in content
     assert "PANCAKE_API_BASE_URL=https://pos.pages.fm/api/v1" in content
+    assert "PANCAKE_MAX_PAGES=1" in content
 
 
 def test_write_env_refuses_to_replace_existing_file(tmp_path: Path) -> None:

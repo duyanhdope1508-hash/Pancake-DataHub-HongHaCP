@@ -44,6 +44,8 @@ async def sync_all(settings: Settings) -> dict[str, int]:
     allowlist = settings.shop_allowlist
     total_seen = 0
     total_written = 0
+    total_pages = 0
+    shops_processed = 0
 
     async with PancakeClient(settings.pancake_api_base_url, api_key) as client:
         shops = await client.list_shops()
@@ -51,6 +53,7 @@ async def sync_all(settings: Settings) -> dict[str, int]:
             shop_id = _record_id(shop_payload, "id", "shop_id")
             if not shop_id or (allowlist and shop_id not in allowlist):
                 continue
+            shops_processed += 1
 
             with SessionLocal() as session:
                 session.execute(
@@ -75,7 +78,7 @@ async def sync_all(settings: Settings) -> dict[str, int]:
 
                 try:
                     page_number = 1
-                    while page_number <= 100_000:
+                    while page_number <= settings.pancake_max_pages:
                         orders = await client.list_orders(
                             shop_id,
                             page_number=page_number,
@@ -83,6 +86,7 @@ async def sync_all(settings: Settings) -> dict[str, int]:
                         )
                         if not orders:
                             break
+                        total_pages += 1
 
                         page_written = 0
                         for order in orders:
@@ -137,5 +141,11 @@ async def sync_all(settings: Settings) -> dict[str, int]:
                         session.commit()
                     raise
 
-    return {"rows_seen": total_seen, "rows_written": total_written}
+    return {
+        "shops_processed": shops_processed,
+        "pages_processed": total_pages,
+        "rows_seen": total_seen,
+        "rows_written": total_written,
+        "page_limit": settings.pancake_max_pages,
+    }
 

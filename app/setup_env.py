@@ -18,6 +18,7 @@ def build_env(api_key: str, database_password: str) -> str:
             f"PANCAKE_API_KEY={api_key}",
             "PANCAKE_SHOP_IDS=",
             "PANCAKE_PAGE_SIZE=100",
+            "PANCAKE_MAX_PAGES=1",
             "",
         ]
     )
