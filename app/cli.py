@@ -4,6 +4,7 @@ import json
 
 from app.config import get_settings
 from app.db import init_db
+from app.inspection import inspect_orders
 from app.sync import probe, sync_all
 
 
@@ -20,12 +21,17 @@ async def _run(command: str) -> None:
         print(json.dumps({"success": True, **result}, ensure_ascii=False, indent=2))
         return
 
+    if command == "inspect-orders":
+        result = await inspect_orders(settings)
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
     raise ValueError(f"Unknown command: {command}")
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Pancake POS ingestion utility")
-    parser.add_argument("command", choices=["probe", "sync"])
+    parser.add_argument("command", choices=["probe", "inspect-orders", "sync"])
     args = parser.parse_args()
     asyncio.run(_run(args.command))
 
