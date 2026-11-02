@@ -82,6 +82,7 @@ class CoreOrder(Base):
         Index("ix_core_orders_shop_status", "shop_id", "status"),
         Index("ix_core_orders_shop_updated", "shop_id", "source_updated_at"),
         Index("ix_core_orders_shop_customer", "shop_id", "source_customer_id"),
+        Index("ix_core_orders_shop_page", "shop_id", "source_page_id"),
     )
 
     shop_id: Mapped[str] = mapped_column(
@@ -89,6 +90,8 @@ class CoreOrder(Base):
     )
     source_order_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     source_customer_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    source_page_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    page_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
     inserted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

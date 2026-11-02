@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from app.transform import normalize_phone, parse_datetime, parse_decimal
+from app.transform import extract_page, normalize_phone, parse_datetime, parse_decimal
 
 
 def test_normalize_phone_keeps_digits_only() -> None:
@@ -25,4 +25,17 @@ def test_parse_datetime_rejects_invalid_value() -> None:
 def test_parse_decimal_preserves_precision() -> None:
     assert parse_decimal("12345.67") == Decimal("12345.67")
     assert parse_decimal(True) is None
+
+
+def test_extract_page_uses_top_level_id_and_nested_name() -> None:
+    assert extract_page(
+        {"page_id": "page-123", "page": {"id": "fallback", "name": "Main Page"}}
+    ) == ("page-123", "Main Page")
+
+
+def test_extract_page_falls_back_to_nested_id() -> None:
+    assert extract_page({"page": {"id": 123, "name": "Main Page"}}) == (
+        "123",
+        "Main Page",
+    )
 

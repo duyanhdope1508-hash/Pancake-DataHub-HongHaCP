@@ -50,6 +50,12 @@ def _string(value: Any) -> str | None:
     return text or None
 
 
+def extract_page(payload: dict[str, Any]) -> tuple[str | None, str | None]:
+    page = payload.get("page") if isinstance(payload.get("page"), dict) else {}
+    page_id = _string(payload.get("page_id")) or _string(page.get("id"))
+    return page_id, _string(page.get("name"))
+
+
 def transform_raw_orders() -> dict[str, int]:
     orders_transformed = 0
     customers_transformed = 0
@@ -97,10 +103,13 @@ def transform_raw_orders() -> dict[str, int]:
                 or shipping.get("full_address")
                 or shipping.get("address")
             )
+            page_id, page_name = extract_page(payload)
             order_values = {
                 "shop_id": raw_order.shop_id,
                 "source_order_id": raw_order.source_order_id,
                 "source_customer_id": customer_id,
+                "source_page_id": page_id,
+                "page_name": page_name,
                 "status": payload.get("status") if isinstance(payload.get("status"), int) else None,
                 "status_name": _string(payload.get("status_name")),
                 "inserted_at": parse_datetime(payload.get("inserted_at")),
