@@ -1,5 +1,6 @@
 .env
 secrets/*.json
+secrets/*.tmp
 !secrets/*.example.json
 .venv/
 __pycache__/
