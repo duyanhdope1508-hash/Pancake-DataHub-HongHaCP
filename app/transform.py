@@ -2,11 +2,14 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
 from app.models import CoreCustomer, CoreOrder, CoreOrderItem, RawOrder
+
+TRANSFORM_BATCH_SIZE = 500
 
 
 def parse_datetime(value: Any) -> datetime | None:
@@ -56,132 +59,192 @@ def extract_page(payload: dict[str, Any]) -> tuple[str | None, str | None]:
     return page_id, _string(page.get("name"))
 
 
+def _upsert_batch(
+    session: Session,
+    model: type[CoreCustomer] | type[CoreOrder],
+    values: list[dict[str, Any]],
+    *,
+    conflict_columns: list[Any],
+) -> None:
+    if not values:
+        return
+    statement = insert(model).values(values)
+    primary_key_names = {column.name for column in conflict_columns}
+    update_values = {
+        key: getattr(statement.excluded, key)
+        for key in values[0]
+        if key not in primary_key_names
+    }
+    session.execute(
+        statement.on_conflict_do_update(
+            index_elements=conflict_columns,
+            set_=update_values,
+        )
+    )
+
+
 def transform_raw_orders() -> dict[str, int]:
     orders_transformed = 0
     customers_transformed = 0
     items_transformed = 0
 
     with SessionLocal() as session:
-        raw_orders = session.scalars(select(RawOrder)).all()
+        session.execute(delete(CoreOrderItem))
+        last_shop_id: str | None = None
+        last_order_id: str | None = None
 
-        for raw_order in raw_orders:
-            payload = raw_order.payload
-            customer = payload.get("customer") if isinstance(payload.get("customer"), dict) else {}
-            customer_id = _string(customer.get("id"))
-
-            if customer_id:
-                primary_phone = _first_string(customer.get("phone_numbers"))
-                customer_values = {
-                    "shop_id": raw_order.shop_id,
-                    "source_customer_id": customer_id,
-                    "name": _string(customer.get("name")),
-                    "primary_phone": primary_phone,
-                    "normalized_phone": normalize_phone(primary_phone),
-                    "primary_email": _first_string(customer.get("emails")),
-                    "source_updated_at": parse_datetime(customer.get("updated_at")),
-                }
-                session.execute(
-                    insert(CoreCustomer)
-                    .values(**customer_values)
-                    .on_conflict_do_update(
-                        index_elements=[
-                            CoreCustomer.shop_id,
-                            CoreCustomer.source_customer_id,
-                        ],
-                        set_=customer_values,
+        while True:
+            statement = (
+                select(RawOrder)
+                .order_by(RawOrder.shop_id.asc(), RawOrder.source_order_id.asc())
+                .limit(TRANSFORM_BATCH_SIZE)
+            )
+            if last_shop_id is not None and last_order_id is not None:
+                statement = statement.where(
+                    or_(
+                        RawOrder.shop_id > last_shop_id,
+                        and_(
+                            RawOrder.shop_id == last_shop_id,
+                            RawOrder.source_order_id > last_order_id,
+                        ),
                     )
                 )
-                customers_transformed += 1
+            raw_orders = list(session.scalars(statement).all())
+            if not raw_orders:
+                break
 
-            shipping = (
-                payload.get("shipping_address")
-                if isinstance(payload.get("shipping_address"), dict)
-                else {}
-            )
-            partner = payload.get("partner") if isinstance(payload.get("partner"), dict) else {}
-            full_address = (
-                shipping.get("new_full_address")
-                or shipping.get("full_address")
-                or shipping.get("address")
-            )
-            page_id, page_name = extract_page(payload)
-            order_values = {
-                "shop_id": raw_order.shop_id,
-                "source_order_id": raw_order.source_order_id,
-                "source_customer_id": customer_id,
-                "source_page_id": page_id,
-                "page_name": page_name,
-                "status": payload.get("status") if isinstance(payload.get("status"), int) else None,
-                "status_name": _string(payload.get("status_name")),
-                "inserted_at": parse_datetime(payload.get("inserted_at")),
-                "source_updated_at": parse_datetime(payload.get("updated_at")),
-                "total_price": parse_decimal(payload.get("total_price")),
-                "total_quantity": parse_decimal(payload.get("total_quantity")),
-                "currency": _string(payload.get("order_currency")),
-                "shipping_name": _string(shipping.get("full_name")),
-                "shipping_phone": _string(shipping.get("phone_number")),
-                "shipping_address": _string(full_address),
-                "tracking_code": (
-                    _string(partner.get("extend_code"))
-                    or _string(partner.get("order_number_vtp"))
-                    or _string(partner.get("order_id_ghn"))
-                    or _string(partner.get("custom_partner_id"))
-                ),
-                "tracking_link": _string(payload.get("tracking_link")),
-                "shipping_fee": parse_decimal(payload.get("shipping_fee")),
-                "carrier_name": (
-                    _string(partner.get("partner_name"))
-                    or _string(partner.get("service_partner"))
-                ),
-                "delivery_status": _string(partner.get("partner_status")),
-                "sent_to_carrier_at": (
-                    parse_datetime(payload.get("time_send_partner"))
-                    or parse_datetime(partner.get("picked_up_at"))
-                ),
-                "returned_reason": (
-                    _string(payload.get("returned_reason_name"))
-                    or _string(payload.get("returned_reason"))
-                ),
-                "return_fee": parse_decimal(payload.get("return_fee")),
-            }
-            session.execute(
-                insert(CoreOrder)
-                .values(**order_values)
-                .on_conflict_do_update(
-                    index_elements=[CoreOrder.shop_id, CoreOrder.source_order_id],
-                    set_=order_values,
-                )
-            )
-            orders_transformed += 1
+            customer_batch: dict[tuple[str, str], dict[str, Any]] = {}
+            order_batch: list[dict[str, Any]] = []
+            item_batch: list[dict[str, Any]] = []
 
-            session.execute(
-                delete(CoreOrderItem).where(
-                    CoreOrderItem.shop_id == raw_order.shop_id,
-                    CoreOrderItem.source_order_id == raw_order.source_order_id,
-                )
-            )
-            items = payload.get("items") if isinstance(payload.get("items"), list) else []
-            for line_number, item in enumerate(items, start=1):
-                if not isinstance(item, dict):
-                    continue
-                variation_info = (
-                    item.get("variation_info")
-                    if isinstance(item.get("variation_info"), dict)
+            for raw_order in raw_orders:
+                payload = raw_order.payload
+                customer = (
+                    payload.get("customer")
+                    if isinstance(payload.get("customer"), dict)
                     else {}
                 )
-                session.add(
-                    CoreOrderItem(
-                        shop_id=raw_order.shop_id,
-                        source_order_id=raw_order.source_order_id,
-                        line_number=line_number,
-                        source_item_id=_string(item.get("id")),
-                        product_name=_string(variation_info.get("name")),
-                        quantity=parse_decimal(item.get("quantity")),
-                        unit_price=parse_decimal(variation_info.get("retail_price")),
-                        total_discount=parse_decimal(item.get("total_discount")),
-                    )
+                customer_id = _string(customer.get("id"))
+
+                if customer_id:
+                    primary_phone = _first_string(customer.get("phone_numbers"))
+                    customer_values = {
+                        "shop_id": raw_order.shop_id,
+                        "source_customer_id": customer_id,
+                        "name": _string(customer.get("name")),
+                        "primary_phone": primary_phone,
+                        "normalized_phone": normalize_phone(primary_phone),
+                        "primary_email": _first_string(customer.get("emails")),
+                        "source_updated_at": parse_datetime(customer.get("updated_at")),
+                    }
+                    customer_batch[(raw_order.shop_id, customer_id)] = customer_values
+                    customers_transformed += 1
+
+                shipping = (
+                    payload.get("shipping_address")
+                    if isinstance(payload.get("shipping_address"), dict)
+                    else {}
                 )
-                items_transformed += 1
+                partner = (
+                    payload.get("partner") if isinstance(payload.get("partner"), dict) else {}
+                )
+                full_address = (
+                    shipping.get("new_full_address")
+                    or shipping.get("full_address")
+                    or shipping.get("address")
+                )
+                page_id, page_name = extract_page(payload)
+                order_batch.append(
+                    {
+                        "shop_id": raw_order.shop_id,
+                        "source_order_id": raw_order.source_order_id,
+                        "source_customer_id": customer_id,
+                        "source_page_id": page_id,
+                        "page_name": page_name,
+                        "status": (
+                            payload.get("status")
+                            if isinstance(payload.get("status"), int)
+                            else None
+                        ),
+                        "status_name": _string(payload.get("status_name")),
+                        "inserted_at": parse_datetime(payload.get("inserted_at")),
+                        "source_updated_at": parse_datetime(payload.get("updated_at")),
+                        "total_price": parse_decimal(payload.get("total_price")),
+                        "total_quantity": parse_decimal(payload.get("total_quantity")),
+                        "currency": _string(payload.get("order_currency")),
+                        "shipping_name": _string(shipping.get("full_name")),
+                        "shipping_phone": _string(shipping.get("phone_number")),
+                        "shipping_address": _string(full_address),
+                        "tracking_code": (
+                            _string(partner.get("extend_code"))
+                            or _string(partner.get("order_number_vtp"))
+                            or _string(partner.get("order_id_ghn"))
+                            or _string(partner.get("custom_partner_id"))
+                        ),
+                        "tracking_link": _string(payload.get("tracking_link")),
+                        "shipping_fee": parse_decimal(payload.get("shipping_fee")),
+                        "carrier_name": (
+                            _string(partner.get("partner_name"))
+                            or _string(partner.get("service_partner"))
+                        ),
+                        "delivery_status": _string(partner.get("partner_status")),
+                        "sent_to_carrier_at": (
+                            parse_datetime(payload.get("time_send_partner"))
+                            or parse_datetime(partner.get("picked_up_at"))
+                        ),
+                        "returned_reason": (
+                            _string(payload.get("returned_reason_name"))
+                            or _string(payload.get("returned_reason"))
+                        ),
+                        "return_fee": parse_decimal(payload.get("return_fee")),
+                    }
+                )
+                orders_transformed += 1
+
+                items = payload.get("items") if isinstance(payload.get("items"), list) else []
+                for line_number, item in enumerate(items, start=1):
+                    if not isinstance(item, dict):
+                        continue
+                    variation_info = (
+                        item.get("variation_info")
+                        if isinstance(item.get("variation_info"), dict)
+                        else {}
+                    )
+                    item_batch.append(
+                        {
+                            "shop_id": raw_order.shop_id,
+                            "source_order_id": raw_order.source_order_id,
+                            "line_number": line_number,
+                            "source_item_id": _string(item.get("id")),
+                            "product_name": _string(variation_info.get("name")),
+                            "quantity": parse_decimal(item.get("quantity")),
+                            "unit_price": parse_decimal(variation_info.get("retail_price")),
+                            "total_discount": parse_decimal(item.get("total_discount")),
+                        }
+                    )
+                    items_transformed += 1
+
+            _upsert_batch(
+                session,
+                CoreCustomer,
+                list(customer_batch.values()),
+                conflict_columns=[
+                    CoreCustomer.shop_id,
+                    CoreCustomer.source_customer_id,
+                ],
+            )
+            _upsert_batch(
+                session,
+                CoreOrder,
+                order_batch,
+                conflict_columns=[CoreOrder.shop_id, CoreOrder.source_order_id],
+            )
+            if item_batch:
+                session.execute(insert(CoreOrderItem).values(item_batch))
+
+            last_order = raw_orders[-1]
+            last_shop_id = last_order.shop_id
+            last_order_id = last_order.source_order_id
 
         session.commit()
 
