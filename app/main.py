@@ -4,6 +4,7 @@ from fastapi import FastAPI, Query
 from sqlalchemy import text
 
 from app.db import SessionLocal, init_db
+from app.order_filters import order_filters
 from app.search import search_orders
 
 
@@ -46,4 +47,10 @@ def orders(
             page_number=page_number,
             page_size=page_size,
         )
+
+
+@app.get("/api/order-filters")
+def filters() -> dict:
+    with SessionLocal() as session:
+        return order_filters(session)
 
