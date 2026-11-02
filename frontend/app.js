@@ -7,6 +7,7 @@ const state = {
 const elements = {
   filterForm: document.querySelector("#filterForm"),
   searchInput: document.querySelector("#searchInput"),
+  shopFilter: document.querySelector("#shopFilter"),
   pageFilter: document.querySelector("#pageFilter"),
   statusFilter: document.querySelector("#statusFilter"),
   ordersBody: document.querySelector("#ordersBody"),
@@ -14,6 +15,7 @@ const elements = {
   errorBanner: document.querySelector("#errorBanner"),
   resultCount: document.querySelector("#resultCount"),
   totalOrders: document.querySelector("#totalOrders"),
+  totalShops: document.querySelector("#totalShops"),
   totalPages: document.querySelector("#totalPages"),
   totalStatuses: document.querySelector("#totalStatuses"),
   previousPage: document.querySelector("#previousPage"),
@@ -89,9 +91,17 @@ function addOption(select, value, label) {
 async function loadFilters() {
   const data = await fetchJson("/api/order-filters");
   elements.totalOrders.textContent = integerFormatter.format(data.total_orders);
+  elements.totalShops.textContent = integerFormatter.format(data.shops.length);
   elements.totalPages.textContent = integerFormatter.format(data.pages.length);
   elements.totalStatuses.textContent = integerFormatter.format(data.statuses.length);
 
+  for (const shop of data.shops) {
+    addOption(
+      elements.shopFilter,
+      shop.shop_id,
+      `${text(shop.shop_name, shop.shop_id)} · ${integerFormatter.format(shop.order_count)}`,
+    );
+  }
   for (const page of data.pages) {
     addOption(
       elements.pageFilter,
@@ -166,6 +176,7 @@ async function loadOrders() {
   });
   const query = elements.searchInput.value.trim();
   if (query) params.set("q", query);
+  if (elements.shopFilter.value) params.set("shop_id", elements.shopFilter.value);
   if (elements.pageFilter.value) params.set("page_id", elements.pageFilter.value);
   if (elements.statusFilter.value) params.set("status", elements.statusFilter.value);
 
@@ -227,6 +238,11 @@ async function openOrder(orderId, shopId) {
 
 elements.filterForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  state.pageNumber = 1;
+  loadOrders();
+});
+
+elements.shopFilter.addEventListener("change", () => {
   state.pageNumber = 1;
   loadOrders();
 });

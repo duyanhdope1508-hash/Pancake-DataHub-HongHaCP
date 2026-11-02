@@ -23,6 +23,7 @@ def search_orders(
     session: Session,
     *,
     query: str | None = None,
+    shop_id: str | None = None,
     page_id: str | None = None,
     status: int | None = None,
     page_number: int = 1,
@@ -50,6 +51,8 @@ def search_orders(
             )
         statement = statement.where(or_(*search_conditions))
 
+    if shop_id:
+        statement = statement.where(CoreOrder.shop_id == shop_id)
     if page_id:
         statement = statement.where(CoreOrder.source_page_id == page_id)
     if status is not None:

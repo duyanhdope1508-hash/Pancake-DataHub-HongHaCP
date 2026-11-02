@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Pancake Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=2" />
-    <script src="/assets/app.js?v=1" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=3" />
+    <script src="/assets/app.js?v=2" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -38,6 +38,10 @@
               <strong id="totalOrders">—</strong>
             </article>
             <article class="summary-card">
+              <span>Cửa hàng</span>
+              <strong id="totalShops">—</strong>
+            </article>
+            <article class="summary-card">
               <span>Page</span>
               <strong id="totalPages">—</strong>
             </article>
@@ -64,6 +68,13 @@
                 <path d="m21 21-4.3-4.3m2.3-5.2A7.5 7.5 0 1 1 4 11.5a7.5 7.5 0 0 1 15 0Z" />
               </svg>
               <input id="searchInput" type="search" maxlength="100" placeholder="Mã đơn, tên khách, số điện thoại…" />
+            </label>
+
+            <label>
+              <span class="sr-only">Cửa hàng</span>
+              <select id="shopFilter">
+                <option value="">Tất cả cửa hàng</option>
+              </select>
             </label>
 
             <label>

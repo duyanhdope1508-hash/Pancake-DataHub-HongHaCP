@@ -57,6 +57,7 @@ def health() -> dict[str, str]:
 @app.get("/api/orders")
 def orders(
     q: str | None = Query(default=None, max_length=100),
+    shop_id: str | None = Query(default=None, max_length=64),
     page_id: str | None = Query(default=None, max_length=128),
     status: int | None = Query(default=None),
     page_number: int = Query(default=1, ge=1),
@@ -66,6 +67,7 @@ def orders(
         return search_orders(
             session,
             query=q,
+            shop_id=shop_id,
             page_id=page_id,
             status=status,
             page_number=page_number,
