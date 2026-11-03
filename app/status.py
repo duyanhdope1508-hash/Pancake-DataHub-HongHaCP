@@ -4,7 +4,15 @@ from typing import Any
 from sqlalchemy import func, select
 
 from app.db import SessionLocal
-from app.models import CoreCustomer, CoreOrder, CoreOrderItem, RawOrder, Shop, SyncRun
+from app.models import (
+    CoreCustomer,
+    CoreOrder,
+    CoreOrderItem,
+    PancakePageCustomer,
+    RawOrder,
+    Shop,
+    SyncRun,
+)
 
 
 def _isoformat(value: datetime | None) -> str | None:
@@ -21,6 +29,9 @@ def database_status() -> dict[str, Any]:
         core_order_count = session.scalar(select(func.count()).select_from(CoreOrder)) or 0
         core_item_count = (
             session.scalar(select(func.count()).select_from(CoreOrderItem)) or 0
+        )
+        page_customer_count = (
+            session.scalar(select(func.count()).select_from(PancakePageCustomer)) or 0
         )
         latest_run = session.scalar(
             select(SyncRun).order_by(SyncRun.started_at.desc()).limit(1)
@@ -46,6 +57,7 @@ def database_status() -> dict[str, Any]:
             "core_customers": core_customer_count,
             "core_orders": core_order_count,
             "core_order_items": core_item_count,
+            "page_customers": page_customer_count,
             "latest_sync": latest,
         }
 

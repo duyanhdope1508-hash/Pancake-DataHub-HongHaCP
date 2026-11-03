@@ -133,6 +133,38 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261103_005_add_pancake_page_customers",
+        (
+            """
+            CREATE TABLE IF NOT EXISTS pancake_page_customers (
+                page_id VARCHAR(128) NOT NULL,
+                page_customer_id VARCHAR(255) NOT NULL,
+                source_customer_id VARCHAR(255),
+                psid VARCHAR(255),
+                global_id VARCHAR(255),
+                name TEXT,
+                conversation_id VARCHAR(255),
+                raw_payload JSONB NOT NULL,
+                first_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (page_id, page_customer_id)
+            )
+            """,
+            (
+                "CREATE INDEX IF NOT EXISTS ix_page_customers_psid "
+                "ON pancake_page_customers (page_id, psid)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_page_customers_global_id "
+                "ON pancake_page_customers (global_id)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_page_customers_name "
+                "ON pancake_page_customers (name)"
+            ),
+        ),
+    ),
 )
 
 

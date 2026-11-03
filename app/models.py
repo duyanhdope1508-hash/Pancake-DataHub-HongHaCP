@@ -126,6 +126,30 @@ class CustomerIdentity(Base):
     )
 
 
+class PancakePageCustomer(Base):
+    __tablename__ = "pancake_page_customers"
+    __table_args__ = (
+        Index("ix_page_customers_psid", "page_id", "psid"),
+        Index("ix_page_customers_global_id", "global_id"),
+        Index("ix_page_customers_name", "name"),
+    )
+
+    page_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    page_customer_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    source_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    psid: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    global_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    conversation_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    raw_payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 class CoreCustomer(Base):
     __tablename__ = "core_customers"
     __table_args__ = (
