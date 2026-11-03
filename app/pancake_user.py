@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import Mapping
 from typing import Any, Self
+from urllib.parse import quote
 
 import httpx
 
@@ -58,6 +59,37 @@ class PancakeUserClient:
 
         raise PancakePagesApiError("Pancake user API request failed after retries")
 
+    async def generate_page_access_token(self, page_id: str) -> str:
+        safe_page_id = quote(page_id, safe="")
+        params = {"access_token": self._access_token, "page_id": page_id}
+        try:
+            response = await self._client.post(
+                f"/pages/{safe_page_id}/generate_page_access_token",
+                params=params,
+            )
+        except httpx.RequestError as exc:
+            raise PancakePagesApiError("Could not connect to the Pancake user API") from exc
+
+        if response.status_code >= 400:
+            raise PancakePagesApiError(
+                f"Generate Page token failed with HTTP {response.status_code}"
+            )
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise PancakePagesApiError(
+                "Generate Page token returned a non-JSON response"
+            ) from exc
+        if isinstance(payload, Mapping) and payload.get("success") is False:
+            details = self._safe_error_details(payload)
+            suffix = f" ({details})" if details else ""
+            raise PancakePagesApiError(f"Pancake rejected token generation{suffix}")
+
+        token = extract_generated_page_token(payload)
+        if not token:
+            raise PancakePagesApiError("Pancake did not return a Page Access Token")
+        return token
+
     def _safe_error_details(self, payload: Mapping[str, Any]) -> str:
         details: list[str] = []
         for key in ("error_code", "message_code", "error", "message"):
@@ -70,7 +102,7 @@ class PancakeUserClient:
         return ", ".join(details)
 
 
-def extract_available_page_tokens(payload: Mapping[str, Any]) -> list[dict[str, str]]:
+def extract_activated_pages(payload: Mapping[str, Any]) -> list[dict[str, str]]:
     pages = payload.get("pages")
     if not isinstance(pages, Mapping):
         pages = payload.get("categorized")
@@ -92,7 +124,7 @@ def extract_available_page_tokens(payload: Mapping[str, Any]) -> list[dict[str, 
             token = str(settings.get("page_access_token") or "").strip()
         if not token:
             token = str(page.get("page_access_token") or "").strip()
-        if not page_id or len(token) < 10:
+        if not page_id:
             continue
         page_name = str(page.get("name") or page.get("username") or page_id).strip()
         result.append(
@@ -103,3 +135,26 @@ def extract_available_page_tokens(payload: Mapping[str, Any]) -> list[dict[str, 
             }
         )
     return result
+
+
+def extract_available_page_tokens(payload: Mapping[str, Any]) -> list[dict[str, str]]:
+    return [
+        page
+        for page in extract_activated_pages(payload)
+        if len(page["page_access_token"]) >= 10
+    ]
+
+
+def extract_generated_page_token(payload: Any) -> str:
+    if not isinstance(payload, Mapping):
+        return ""
+    direct = str(payload.get("page_access_token") or "").strip()
+    if len(direct) >= 10:
+        return direct
+    for key in ("data", "page", "settings"):
+        nested = payload.get(key)
+        if isinstance(nested, Mapping):
+            token = extract_generated_page_token(nested)
+            if token:
+                return token
+    return ""

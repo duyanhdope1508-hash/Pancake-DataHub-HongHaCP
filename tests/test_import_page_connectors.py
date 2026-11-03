@@ -1,6 +1,6 @@
 from app.import_page_connectors import merge_discovered_pages
 from app.page_connectors import PancakePageConnector
-from app.pancake_user import extract_available_page_tokens
+from app.pancake_user import extract_activated_pages, extract_available_page_tokens
 
 
 def test_extracts_admin_page_tokens_from_activated_pages() -> None:
@@ -31,6 +31,25 @@ def test_extracts_admin_page_tokens_from_activated_pages() -> None:
             "page_access_token": "valid-page-one-token",
         }
     ]
+
+
+def test_extracts_all_activated_pages_including_missing_tokens() -> None:
+    result = extract_activated_pages(
+        {
+            "pages": {
+                "activated": [
+                    {"id": "page-1", "name": "Has Token", "settings": {
+                        "page_access_token": "valid-page-token"
+                    }},
+                    {"id": "page-2", "name": "Missing Token", "settings": {}},
+                ]
+            }
+        }
+    )
+
+    assert len(result) == 2
+    assert result[1]["page_id"] == "page-2"
+    assert result[1]["page_access_token"] == ""
 
 
 def test_merge_discovered_pages_skips_existing_page() -> None:

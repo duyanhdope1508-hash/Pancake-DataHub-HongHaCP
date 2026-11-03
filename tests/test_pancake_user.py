@@ -2,7 +2,13 @@ import httpx
 import pytest
 
 from app.pancake_pages import PancakePagesApiError
-from app.pancake_user import PancakeUserClient
+from app.pancake_user import PancakeUserClient, extract_generated_page_token
+
+
+def test_extracts_generated_token_from_common_response_envelopes() -> None:
+    assert extract_generated_page_token(
+        {"success": True, "data": {"page_access_token": "valid-generated-token"}}
+    ) == "valid-generated-token"
 
 
 async def test_user_api_errors_do_not_expose_token(monkeypatch) -> None:
