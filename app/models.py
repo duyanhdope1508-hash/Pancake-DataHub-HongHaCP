@@ -2,7 +2,18 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, Index, Integer, Numeric, String, Text, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -55,6 +66,66 @@ class SyncRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class MasterCustomer(Base):
+    __tablename__ = "master_customers"
+    __table_args__ = (
+        Index("ix_master_customers_phone", "normalized_phone"),
+        Index("ix_master_customers_name", "display_name"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    display_name: Mapped[str | None] = mapped_column(Text, nullable=True)
+    primary_phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    normalized_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    primary_email: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class CustomerIdentity(Base):
+    __tablename__ = "customer_identities"
+    __table_args__ = (
+        UniqueConstraint(
+            "identity_type",
+            "identity_value",
+            "scope",
+            name="uq_customer_identity_type_value_scope",
+        ),
+        Index("ix_customer_identities_master", "master_customer_id"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    master_customer_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "master_customers.id",
+            name="fk_customer_identities_master_customer",
+            ondelete="CASCADE",
+        ),
+        nullable=False,
+    )
+    identity_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    identity_value: Mapped[str] = mapped_column(String(512), nullable=False)
+    scope: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    source: Mapped[str] = mapped_column(String(64), nullable=False)
+    confidence: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    is_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 class CoreCustomer(Base):
     __tablename__ = "core_customers"
     __table_args__ = (
@@ -65,6 +136,16 @@ class CoreCustomer(Base):
         String(64), ForeignKey("pancake_shops.id"), primary_key=True
     )
     source_customer_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    master_customer_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey(
+            "master_customers.id",
+            name="fk_core_customers_master_customer",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
     name: Mapped[str | None] = mapped_column(Text, nullable=True)
     primary_phone: Mapped[str | None] = mapped_column(String(64), nullable=True)
     normalized_phone: Mapped[str | None] = mapped_column(String(32), nullable=True)
@@ -90,6 +171,16 @@ class CoreOrder(Base):
         String(64), ForeignKey("pancake_shops.id"), primary_key=True
     )
     source_order_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    master_customer_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey(
+            "master_customers.id",
+            name="fk_core_orders_master_customer",
+            ondelete="SET NULL",
+        ),
+        nullable=True,
+        index=True,
+    )
     source_customer_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     source_page_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     page_name: Mapped[str | None] = mapped_column(Text, nullable=True)

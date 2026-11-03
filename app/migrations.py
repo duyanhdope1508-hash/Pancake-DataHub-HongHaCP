@@ -45,6 +45,94 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261103_004_add_customer_identity_foundation",
+        (
+            """
+            CREATE TABLE IF NOT EXISTS master_customers (
+                id VARCHAR(36) PRIMARY KEY,
+                display_name TEXT,
+                primary_phone VARCHAR(64),
+                normalized_phone VARCHAR(32),
+                primary_email TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """,
+            (
+                "CREATE INDEX IF NOT EXISTS ix_master_customers_phone "
+                "ON master_customers (normalized_phone)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_master_customers_name "
+                "ON master_customers (display_name)"
+            ),
+            """
+            CREATE TABLE IF NOT EXISTS customer_identities (
+                id VARCHAR(36) PRIMARY KEY,
+                master_customer_id VARCHAR(36) NOT NULL,
+                identity_type VARCHAR(64) NOT NULL,
+                identity_value VARCHAR(512) NOT NULL,
+                scope VARCHAR(128) NOT NULL DEFAULT '',
+                source VARCHAR(64) NOT NULL,
+                confidence INTEGER NOT NULL DEFAULT 100,
+                is_verified BOOLEAN NOT NULL DEFAULT FALSE,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_customer_identities_master_customer
+                    FOREIGN KEY (master_customer_id)
+                    REFERENCES master_customers (id)
+                    ON DELETE CASCADE,
+                CONSTRAINT uq_customer_identity_type_value_scope
+                    UNIQUE (identity_type, identity_value, scope)
+            )
+            """,
+            (
+                "CREATE INDEX IF NOT EXISTS ix_customer_identities_master "
+                "ON customer_identities (master_customer_id)"
+            ),
+            "ALTER TABLE core_customers ADD COLUMN IF NOT EXISTS master_customer_id VARCHAR(36)",
+            "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS master_customer_id VARCHAR(36)",
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'fk_core_customers_master_customer'
+                ) THEN
+                    ALTER TABLE core_customers
+                    ADD CONSTRAINT fk_core_customers_master_customer
+                    FOREIGN KEY (master_customer_id)
+                    REFERENCES master_customers (id)
+                    ON DELETE SET NULL;
+                END IF;
+            END $$
+            """,
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'fk_core_orders_master_customer'
+                ) THEN
+                    ALTER TABLE core_orders
+                    ADD CONSTRAINT fk_core_orders_master_customer
+                    FOREIGN KEY (master_customer_id)
+                    REFERENCES master_customers (id)
+                    ON DELETE SET NULL;
+                END IF;
+            END $$
+            """,
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_customers_master_customer_id "
+                "ON core_customers (master_customer_id)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_master_customer_id "
+                "ON core_orders (master_customer_id)"
+            ),
+        ),
+    ),
 )
 
 
