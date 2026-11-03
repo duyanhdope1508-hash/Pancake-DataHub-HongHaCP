@@ -45,18 +45,39 @@ class PancakePagesClient:
                         "Pancake Pages returned a non-JSON response"
                     ) from exc
                 if isinstance(payload, Mapping) and payload.get("success") is False:
-                    raise PancakePagesApiError("Pancake Pages rejected the request")
+                    details = self._safe_error_details(payload)
+                    suffix = f" ({details})" if details else ""
+                    raise PancakePagesApiError(f"Pancake Pages rejected the request{suffix}")
                 return payload
 
             retryable = response.status_code == 429 or response.status_code >= 500
             if retryable and attempt < 3:
                 await asyncio.sleep(2**attempt)
                 continue
+            details = ""
+            try:
+                error_payload = response.json()
+            except ValueError:
+                error_payload = None
+            if isinstance(error_payload, Mapping):
+                details = self._safe_error_details(error_payload)
+            suffix = f" ({details})" if details else ""
             raise PancakePagesApiError(
-                f"Pancake Pages API request failed with HTTP {response.status_code}"
+                f"Pancake Pages API request failed with HTTP {response.status_code}{suffix}"
             )
 
         raise PancakePagesApiError("Pancake Pages API request failed after retries")
+
+    def _safe_error_details(self, payload: Mapping[str, Any]) -> str:
+        details: list[str] = []
+        for key in ("error_code", "message_code", "error", "message"):
+            value = payload.get(key)
+            if value is None or isinstance(value, (dict, list)):
+                continue
+            safe_value = str(value).replace(self._page_access_token, "[hidden]")[:200]
+            if safe_value:
+                details.append(f"{key}={safe_value}")
+        return ", ".join(details)
 
     async def list_conversations(self, page_id: str) -> list[dict[str, Any]]:
         safe_page_id = quote(page_id, safe="")

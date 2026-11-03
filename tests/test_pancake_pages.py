@@ -45,3 +45,30 @@ async def test_network_errors_do_not_expose_page_token(monkeypatch) -> None:
         assert secret not in str(error.value)
     finally:
         await client._client.aclose()
+
+
+async def test_api_rejection_shows_safe_reason_without_token(monkeypatch) -> None:
+    secret = "page-token-that-must-not-leak"
+    client = PancakePagesClient(secret)
+
+    async def reject_request(*_args, **_kwargs):
+        request = httpx.Request("GET", "https://pages.fm/api/public_api/v2/pages/123")
+        return httpx.Response(
+            200,
+            request=request,
+            json={
+                "success": False,
+                "error_code": 100,
+                "message": f"Invalid token {secret}",
+            },
+        )
+
+    monkeypatch.setattr(client._client, "get", reject_request)
+    try:
+        with pytest.raises(PancakePagesApiError) as error:
+            await client.list_conversations("123")
+        assert "error_code=100" in str(error.value)
+        assert "Invalid token [hidden]" in str(error.value)
+        assert secret not in str(error.value)
+    finally:
+        await client._client.aclose()
