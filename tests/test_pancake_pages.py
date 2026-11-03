@@ -5,6 +5,7 @@ from app.pancake_pages import (
     PancakePagesApiError,
     PancakePagesClient,
     count_global_ids,
+    names_missing_global_id,
 )
 
 
@@ -24,6 +25,18 @@ def test_counts_nested_customer_collection() -> None:
     assert count_global_ids(
         {"data": {"customers": [{"id": "one", "global_id": "global-one"}]}}
     ) == (1, 1)
+
+
+def test_lists_only_names_missing_global_id() -> None:
+    assert names_missing_global_id(
+        {
+            "customers": [
+                {"name": "Has Global", "global_id": "global-one"},
+                {"name": "Missing Global", "global_id": None},
+                {"name": "Also Missing"},
+            ]
+        }
+    ) == ["Missing Global", "Also Missing"]
 
 
 async def test_network_errors_do_not_expose_page_token(monkeypatch) -> None:

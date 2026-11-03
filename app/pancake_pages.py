@@ -99,3 +99,12 @@ def count_global_ids(payload: Mapping[str, Any]) -> tuple[int, int]:
     customers = extract_collection(payload, "customers")
     found = sum(bool(str(customer.get("global_id") or "").strip()) for customer in customers)
     return len(customers), found
+
+
+def names_missing_global_id(payload: Mapping[str, Any]) -> list[str]:
+    customers = extract_collection(payload, "customers")
+    return [
+        str(customer.get("name") or "Khách không có tên").strip()
+        for customer in customers
+        if not str(customer.get("global_id") or "").strip()
+    ]
