@@ -1,4 +1,5 @@
 import asyncio
+import re
 from collections.abc import Mapping
 from typing import Any, Self
 from urllib.parse import quote
@@ -108,3 +109,17 @@ def names_missing_global_id(payload: Mapping[str, Any]) -> list[str]:
         for customer in customers
         if not str(customer.get("global_id") or "").strip()
     ]
+
+
+def profile_test_links_missing_global_id(payload: Mapping[str, Any]) -> list[str]:
+    customers = extract_collection(payload, "customers")
+    links: list[str] = []
+    for customer in customers:
+        if str(customer.get("global_id") or "").strip():
+            continue
+        name = str(customer.get("name") or "Khách không có tên").strip()
+        psid = str(customer.get("fb_id") or customer.get("psid") or "").strip()
+        if not psid or re.fullmatch(r"[A-Za-z0-9._-]+", psid) is None:
+            continue
+        links.append(f"{name} | https://www.facebook.com/{psid}")
+    return links

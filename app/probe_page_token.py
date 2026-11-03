@@ -8,6 +8,7 @@ from app.pancake_pages import (
     PancakePagesClient,
     count_global_ids,
     names_missing_global_id,
+    profile_test_links_missing_global_id,
 )
 
 
@@ -17,12 +18,14 @@ async def probe_page_token(
     *,
     max_conversations: int,
     include_missing_names: bool = False,
+    include_missing_profile_links: bool = False,
 ) -> dict[str, int | list[str]]:
     conversations_checked = 0
     customer_profiles = 0
     global_ids_found = 0
     conversations_failed = 0
     missing_names: list[str] = []
+    missing_profile_links: list[str] = []
 
     async with PancakePagesClient(page_access_token) as client:
         conversations = await client.list_conversations(page_id)
@@ -49,6 +52,8 @@ async def probe_page_token(
             global_ids_found += found
             if include_missing_names:
                 missing_names.extend(names_missing_global_id(payload))
+            if include_missing_profile_links:
+                missing_profile_links.extend(profile_test_links_missing_global_id(payload))
             await asyncio.sleep(0.22)
 
     return {
@@ -57,6 +62,7 @@ async def probe_page_token(
         "global_ids_found": global_ids_found,
         "conversations_failed": conversations_failed,
         "missing_global_id_names": list(dict.fromkeys(missing_names)),
+        "missing_global_id_profile_links": list(dict.fromkeys(missing_profile_links)),
     }
 
 
@@ -72,6 +78,11 @@ def main() -> None:
         "--show-missing-names",
         action="store_true",
         help="chỉ hiện cục bộ tên khách chưa có global_id, không hiện ID",
+    )
+    parser.add_argument(
+        "--show-missing-profile-links",
+        action="store_true",
+        help="hiện cục bộ link Facebook thử nghiệm tạo từ PSID",
     )
     args = parser.parse_args()
     if not 1 <= args.max_conversations <= 60:
@@ -93,6 +104,7 @@ def main() -> None:
                 page_access_token,
                 max_conversations=args.max_conversations,
                 include_missing_names=args.show_missing_names,
+                include_missing_profile_links=args.show_missing_profile_links,
             )
         )
     except PancakePagesApiError as exc:
@@ -113,6 +125,12 @@ def main() -> None:
         print("\nTên khách chưa có global_id (chỉ hiển thị trên máy này):")
         for name in missing_names:
             print(f"- {name}")
+    profile_links = result["missing_global_id_profile_links"]
+    if args.show_missing_profile_links and isinstance(profile_links, list) and profile_links:
+        print("\nLink thử nghiệm tạo từ PSID (chỉ hiển thị trên máy này):")
+        for link in profile_links:
+            print(f"- {link}")
+        print("Các link này có thể chỉ hoạt động khi Facebook đang đăng nhập tài khoản quản trị Page.")
     print("Token và ID khách không được hiển thị hoặc lưu vào file.")
 
 

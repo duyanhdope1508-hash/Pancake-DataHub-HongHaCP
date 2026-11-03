@@ -6,6 +6,7 @@ from app.pancake_pages import (
     PancakePagesClient,
     count_global_ids,
     names_missing_global_id,
+    profile_test_links_missing_global_id,
 )
 
 
@@ -37,6 +38,18 @@ def test_lists_only_names_missing_global_id() -> None:
             ]
         }
     ) == ["Missing Global", "Also Missing"]
+
+
+def test_builds_safe_psid_profile_links_only_for_missing_global_id() -> None:
+    assert profile_test_links_missing_global_id(
+        {
+            "customers": [
+                {"name": "Has Global", "fb_id": "111", "global_id": "global-one"},
+                {"name": "Missing Global", "fb_id": "222", "global_id": None},
+                {"name": "Unsafe", "fb_id": "https://not-an-id.example"},
+            ]
+        }
+    ) == ["Missing Global | https://www.facebook.com/222"]
 
 
 async def test_network_errors_do_not_expose_page_token(monkeypatch) -> None:
