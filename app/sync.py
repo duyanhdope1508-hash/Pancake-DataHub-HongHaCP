@@ -56,160 +56,184 @@ async def probe(settings: Settings) -> dict[str, Any]:
     return {"success": not errors, "connectors": results, "errors": errors}
 
 
-async def sync_all(settings: Settings) -> dict[str, Any]:
-    total_seen = 0
-    total_written = 0
-    total_pages = 0
-    shops_processed = 0
-    connectors_processed = 0
-    errors: list[dict[str, str]] = []
+def _connector_result(connector: PancakeConnector) -> dict[str, Any]:
+    return {
+        "connector": connector.name,
+        "processed": False,
+        "shops_processed": 0,
+        "pages_processed": 0,
+        "rows_seen": 0,
+        "rows_written": 0,
+        "errors": [],
+    }
 
-    for connector in load_connectors(settings):
-        try:
-            async with PancakeClient(
-                settings.pancake_api_base_url, connector.api_key
-            ) as client:
-                try:
-                    shops = await client.list_shops()
-                except Exception as exc:  # noqa: BLE001 - isolate connector failures
-                    errors.append(
-                        {"connector": connector.name, "shop_id": "", "error": str(exc)[:500]}
-                    )
+
+async def _sync_connector(
+    settings: Settings, connector: PancakeConnector
+) -> dict[str, Any]:
+    result = _connector_result(connector)
+    errors: list[dict[str, str]] = result["errors"]
+
+    try:
+        async with PancakeClient(settings.pancake_api_base_url, connector.api_key) as client:
+            try:
+                shops = await client.list_shops()
+            except Exception as exc:  # noqa: BLE001 - isolate connector failures
+                errors.append(
+                    {"connector": connector.name, "shop_id": "", "error": str(exc)[:500]}
+                )
+                return result
+
+            result["processed"] = True
+            for shop_payload in shops:
+                shop_id = _record_id(shop_payload, "id", "shop_id")
+                if not shop_id or not _connector_allows(connector, shop_id):
                     continue
+                result["shops_processed"] += 1
 
-                connectors_processed += 1
-                for shop_payload in shops:
-                    shop_id = _record_id(shop_payload, "id", "shop_id")
-                    if not shop_id or not _connector_allows(connector, shop_id):
-                        continue
-                    shops_processed += 1
-
-                    with SessionLocal() as session:
-                        session.execute(
-                            insert(Shop)
-                            .values(
-                                id=shop_id,
-                                name=_shop_name(shop_payload, shop_id),
-                                raw_payload=shop_payload,
-                            )
-                            .on_conflict_do_update(
-                                index_elements=[Shop.id],
-                                set_={
-                                    "name": _shop_name(shop_payload, shop_id),
-                                    "raw_payload": shop_payload,
-                                    "updated_at": datetime.now(UTC),
-                                },
-                            )
+                with SessionLocal() as session:
+                    session.execute(
+                        insert(Shop)
+                        .values(
+                            id=shop_id,
+                            name=_shop_name(shop_payload, shop_id),
+                            raw_payload=shop_payload,
                         )
-                        run = SyncRun(connector_name=connector.name, shop_id=shop_id)
-                        session.add(run)
-                        session.commit()
+                        .on_conflict_do_update(
+                            index_elements=[Shop.id],
+                            set_={
+                                "name": _shop_name(shop_payload, shop_id),
+                                "raw_payload": shop_payload,
+                                "updated_at": datetime.now(UTC),
+                            },
+                        )
+                    )
+                    run = SyncRun(connector_name=connector.name, shop_id=shop_id)
+                    session.add(run)
+                    session.commit()
 
-                        try:
-                            page_number = settings.pancake_start_page
-                            while page_number <= settings.pancake_max_pages:
-                                orders = await client.list_orders(
-                                    shop_id,
-                                    page_number=page_number,
-                                    page_size=settings.pancake_page_size,
+                    try:
+                        page_number = settings.pancake_start_page
+                        while page_number <= settings.pancake_max_pages:
+                            orders = await client.list_orders(
+                                shop_id,
+                                page_number=page_number,
+                                page_size=settings.pancake_page_size,
+                            )
+                            if not orders:
+                                break
+                            result["pages_processed"] += 1
+
+                            page_written = 0
+                            for order in orders:
+                                result["rows_seen"] += 1
+                                run.rows_seen += 1
+                                order_id = _record_id(
+                                    order, "id", "order_id", "source_order_id"
                                 )
-                                if not orders:
-                                    break
-                                total_pages += 1
+                                if not order_id:
+                                    continue
 
-                                page_written = 0
-                                for order in orders:
-                                    total_seen += 1
-                                    run.rows_seen += 1
-                                    order_id = _record_id(
-                                        order, "id", "order_id", "source_order_id"
+                                source_updated_at = order.get("updated_at") or order.get(
+                                    "update_time"
+                                )
+                                session.execute(
+                                    insert(RawOrder)
+                                    .values(
+                                        shop_id=shop_id,
+                                        source_order_id=order_id,
+                                        payload=order,
+                                        source_updated_at=(
+                                            str(source_updated_at)
+                                            if source_updated_at
+                                            else None
+                                        ),
                                     )
-                                    if not order_id:
-                                        continue
-
-                                    source_updated_at = order.get("updated_at") or order.get(
-                                        "update_time"
-                                    )
-                                    session.execute(
-                                        insert(RawOrder)
-                                        .values(
-                                            shop_id=shop_id,
-                                            source_order_id=order_id,
-                                            payload=order,
-                                            source_updated_at=(
+                                    .on_conflict_do_update(
+                                        index_elements=[
+                                            RawOrder.shop_id,
+                                            RawOrder.source_order_id,
+                                        ],
+                                        set_={
+                                            "payload": order,
+                                            "source_updated_at": (
                                                 str(source_updated_at)
                                                 if source_updated_at
                                                 else None
                                             ),
-                                        )
-                                        .on_conflict_do_update(
-                                            index_elements=[
-                                                RawOrder.shop_id,
-                                                RawOrder.source_order_id,
-                                            ],
-                                            set_={
-                                                "payload": order,
-                                                "source_updated_at": (
-                                                    str(source_updated_at)
-                                                    if source_updated_at
-                                                    else None
-                                                ),
-                                                "ingested_at": datetime.now(UTC),
-                                            },
-                                        )
+                                            "ingested_at": datetime.now(UTC),
+                                        },
                                     )
-                                    page_written += 1
+                                )
+                                page_written += 1
 
-                                run.rows_written += page_written
-                                total_written += page_written
-                                session.commit()
-
-                                if len(orders) < settings.pancake_page_size:
-                                    break
-                                page_number += 1
-
-                            run.status = "success"
-                            run.finished_at = datetime.now(UTC)
+                            run.rows_written += page_written
+                            result["rows_written"] += page_written
                             session.commit()
-                        except asyncio.CancelledError:
-                            session.rollback()
-                            cancelled_run = session.get(SyncRun, run.id)
-                            if cancelled_run:
-                                cancelled_run.status = "cancelled"
-                                cancelled_run.error = "Sync interrupted by operator"
-                                cancelled_run.finished_at = datetime.now(UTC)
-                                session.commit()
-                            raise
-                        except Exception as exc:  # noqa: BLE001 - isolate shop failures
-                            session.rollback()
-                            failed_run = session.get(SyncRun, run.id)
-                            if failed_run:
-                                failed_run.status = "failed"
-                                failed_run.error = str(exc)[:2000]
-                                failed_run.finished_at = datetime.now(UTC)
-                                session.commit()
-                            errors.append(
-                                {
-                                    "connector": connector.name,
-                                    "shop_id": shop_id,
-                                    "error": str(exc)[:500],
-                                }
-                            )
-        except Exception as exc:  # noqa: BLE001 - isolate connector failures
-            errors.append(
-                {"connector": connector.name, "shop_id": "", "error": str(exc)[:500]}
-            )
+
+                            if len(orders) < settings.pancake_page_size:
+                                break
+                            page_number += 1
+
+                        run.status = "success"
+                        run.finished_at = datetime.now(UTC)
+                        session.commit()
+                    except asyncio.CancelledError:
+                        session.rollback()
+                        cancelled_run = session.get(SyncRun, run.id)
+                        if cancelled_run:
+                            cancelled_run.status = "cancelled"
+                            cancelled_run.error = "Sync interrupted by operator"
+                            cancelled_run.finished_at = datetime.now(UTC)
+                            session.commit()
+                        raise
+                    except Exception as exc:  # noqa: BLE001 - isolate shop failures
+                        session.rollback()
+                        failed_run = session.get(SyncRun, run.id)
+                        if failed_run:
+                            failed_run.status = "failed"
+                            failed_run.error = str(exc)[:2000]
+                            failed_run.finished_at = datetime.now(UTC)
+                            session.commit()
+                        errors.append(
+                            {
+                                "connector": connector.name,
+                                "shop_id": shop_id,
+                                "error": str(exc)[:500],
+                            }
+                        )
+    except Exception as exc:  # noqa: BLE001 - isolate connector failures
+        errors.append(
+            {"connector": connector.name, "shop_id": "", "error": str(exc)[:500]}
+        )
+
+    return result
+
+
+async def sync_all(settings: Settings) -> dict[str, Any]:
+    semaphore = asyncio.Semaphore(settings.pancake_sync_concurrency)
+
+    async def run(connector: PancakeConnector) -> dict[str, Any]:
+        async with semaphore:
+            return await _sync_connector(settings, connector)
+
+    connector_results = await asyncio.gather(
+        *(run(connector) for connector in load_connectors(settings))
+    )
+    errors = [error for result in connector_results for error in result["errors"]]
 
     return {
         "success": not errors,
-        "connectors_processed": connectors_processed,
+        "connectors_processed": sum(
+            1 for result in connector_results if result["processed"]
+        ),
         "connectors_failed": len({error["connector"] for error in errors}),
-        "shops_processed": shops_processed,
-        "pages_processed": total_pages,
-        "rows_seen": total_seen,
-        "rows_written": total_written,
+        "shops_processed": sum(result["shops_processed"] for result in connector_results),
+        "pages_processed": sum(result["pages_processed"] for result in connector_results),
+        "rows_seen": sum(result["rows_seen"] for result in connector_results),
+        "rows_written": sum(result["rows_written"] for result in connector_results),
         "start_page": settings.pancake_start_page,
         "page_limit": settings.pancake_max_pages,
+        "concurrency": settings.pancake_sync_concurrency,
         "errors": errors,
     }
-
