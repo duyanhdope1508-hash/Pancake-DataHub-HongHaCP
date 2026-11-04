@@ -9,6 +9,7 @@ def test_sync_defaults_to_one_page() -> None:
     assert settings.pancake_start_page == 1
     assert settings.pancake_max_pages == 1
     assert settings.pancake_sync_concurrency == 4
+    assert settings.pancake_resume_backfill is False
     assert settings.pancake_sync_interval_seconds == 300
 
 

@@ -59,6 +59,8 @@ class SyncRun(Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="running")
     rows_seen: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     rows_written: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    start_page: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    page_limit: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

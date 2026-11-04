@@ -165,6 +165,17 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261105_006_add_resumable_sync_cursor",
+        (
+            "ALTER TABLE sync_runs ADD COLUMN IF NOT EXISTS start_page INTEGER NOT NULL DEFAULT 1",
+            "ALTER TABLE sync_runs ADD COLUMN IF NOT EXISTS page_limit INTEGER NOT NULL DEFAULT 1",
+            (
+                "CREATE INDEX IF NOT EXISTS ix_sync_runs_shop_started "
+                "ON sync_runs (shop_id, started_at)"
+            ),
+        ),
+    ),
 )
 
 

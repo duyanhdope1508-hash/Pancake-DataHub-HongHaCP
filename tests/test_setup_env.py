@@ -14,6 +14,7 @@ def test_build_env_contains_required_settings() -> None:
     assert "PANCAKE_PAGES_CONNECTORS_FILE=secrets/pancake_pages_connectors.json" in content
     assert "PANCAKE_MAX_PAGES=1" in content
     assert "PANCAKE_SYNC_CONCURRENCY=4" in content
+    assert "PANCAKE_RESUME_BACKFILL=false" in content
 
 
 def test_write_env_refuses_to_replace_existing_file(tmp_path: Path) -> None:

@@ -2,6 +2,7 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.config import Settings
@@ -61,11 +62,28 @@ def _connector_result(connector: PancakeConnector) -> dict[str, Any]:
         "connector": connector.name,
         "processed": False,
         "shops_processed": 0,
+        "shops_resumed": 0,
+        "shops_skipped": 0,
         "pages_processed": 0,
         "rows_seen": 0,
         "rows_written": 0,
         "errors": [],
     }
+
+
+def _resume_page(settings: Settings, latest_run: SyncRun | None) -> int | None:
+    if not settings.pancake_resume_backfill or latest_run is None:
+        return settings.pancake_start_page
+    if latest_run.status == "success":
+        return None
+    if latest_run.status not in {"cancelled", "failed"}:
+        return settings.pancake_start_page
+
+    completed_pages = latest_run.rows_seen // settings.pancake_page_size
+    return max(
+        settings.pancake_start_page,
+        latest_run.start_page + completed_pages,
+    )
 
 
 async def _sync_connector(
@@ -108,12 +126,35 @@ async def _sync_connector(
                             },
                         )
                     )
-                    run = SyncRun(connector_name=connector.name, shop_id=shop_id)
+                    session.commit()
+
+                    latest_backfill = session.scalar(
+                        select(SyncRun)
+                        .where(
+                            SyncRun.connector_name == connector.name,
+                            SyncRun.shop_id == shop_id,
+                            SyncRun.page_limit > 1,
+                        )
+                        .order_by(SyncRun.started_at.desc())
+                        .limit(1)
+                    )
+                    page_number = _resume_page(settings, latest_backfill)
+                    if page_number is None:
+                        result["shops_skipped"] += 1
+                        continue
+                    if page_number > settings.pancake_start_page:
+                        result["shops_resumed"] += 1
+
+                    run = SyncRun(
+                        connector_name=connector.name,
+                        shop_id=shop_id,
+                        start_page=page_number,
+                        page_limit=settings.pancake_max_pages,
+                    )
                     session.add(run)
                     session.commit()
 
                     try:
-                        page_number = settings.pancake_start_page
                         while page_number <= settings.pancake_max_pages:
                             orders = await client.list_orders(
                                 shop_id,
@@ -229,6 +270,8 @@ async def sync_all(settings: Settings) -> dict[str, Any]:
         ),
         "connectors_failed": len({error["connector"] for error in errors}),
         "shops_processed": sum(result["shops_processed"] for result in connector_results),
+        "shops_resumed": sum(result["shops_resumed"] for result in connector_results),
+        "shops_skipped": sum(result["shops_skipped"] for result in connector_results),
         "pages_processed": sum(result["pages_processed"] for result in connector_results),
         "rows_seen": sum(result["rows_seen"] for result in connector_results),
         "rows_written": sum(result["rows_written"] for result in connector_results),
