@@ -10,6 +10,19 @@ const elements = {
   shopFilter: document.querySelector("#shopFilter"),
   pageFilter: document.querySelector("#pageFilter"),
   statusFilter: document.querySelector("#statusFilter"),
+  toggleAdvanced: document.querySelector("#toggleAdvanced"),
+  resetFilters: document.querySelector("#resetFilters"),
+  advancedFilters: document.querySelector("#advancedFilters"),
+  productFilter: document.querySelector("#productFilter"),
+  carrierFilter: document.querySelector("#carrierFilter"),
+  deliveryStatusFilter: document.querySelector("#deliveryStatusFilter"),
+  dateFromFilter: document.querySelector("#dateFromFilter"),
+  dateToFilter: document.querySelector("#dateToFilter"),
+  minTotalFilter: document.querySelector("#minTotalFilter"),
+  maxTotalFilter: document.querySelector("#maxTotalFilter"),
+  trackingFilter: document.querySelector("#trackingFilter"),
+  sentFilter: document.querySelector("#sentFilter"),
+  returnedFilter: document.querySelector("#returnedFilter"),
   ordersBody: document.querySelector("#ordersBody"),
   emptyState: document.querySelector("#emptyState"),
   errorBanner: document.querySelector("#errorBanner"),
@@ -117,6 +130,20 @@ async function loadFilters() {
       `${text(status.status_name, `Mã ${status.status}`)} · ${integerFormatter.format(status.order_count)}`,
     );
   }
+  for (const carrier of data.carriers) {
+    addOption(
+      elements.carrierFilter,
+      carrier.carrier_name,
+      `${carrier.carrier_name} · ${integerFormatter.format(carrier.order_count)}`,
+    );
+  }
+  for (const status of data.delivery_statuses) {
+    addOption(
+      elements.deliveryStatusFilter,
+      status.delivery_status,
+      `${status.delivery_status} · ${integerFormatter.format(status.order_count)}`,
+    );
+  }
 }
 
 async function loadSystemStatus() {
@@ -155,7 +182,14 @@ function orderRow(order) {
   );
 
   const statusCell = document.createElement("td");
-  statusCell.append(createElement("span", "status-pill", order.status_name || `Mã ${order.status}`));
+  statusCell.append(
+    createElement("span", "status-pill", order.status_name || `Mã ${order.status}`),
+    createElement(
+      "span",
+      "secondary-text",
+      [order.carrier_name, order.delivery_status].filter(Boolean).join(" · "),
+    ),
+  );
 
   const totalCell = createElement("td", "money", formatMoney(order.total_price, order.currency));
   const updatedCell = createElement("td", "", formatDate(order.updated_at));
@@ -194,6 +228,41 @@ async function loadOrders() {
   if (elements.shopFilter.value) params.set("shop_id", elements.shopFilter.value);
   if (elements.pageFilter.value) params.set("page_id", elements.pageFilter.value);
   if (elements.statusFilter.value) params.set("status", elements.statusFilter.value);
+  if (elements.productFilter.value.trim()) params.set("product", elements.productFilter.value.trim());
+  if (elements.carrierFilter.value) params.set("carrier_name", elements.carrierFilter.value);
+  if (elements.deliveryStatusFilter.value) {
+    params.set("delivery_status", elements.deliveryStatusFilter.value);
+  }
+  if (elements.dateFromFilter.value) {
+    params.set("date_from", new Date(`${elements.dateFromFilter.value}T00:00:00`).toISOString());
+  }
+  if (elements.dateToFilter.value) {
+    params.set("date_to", new Date(`${elements.dateToFilter.value}T23:59:59.999`).toISOString());
+  }
+  if (elements.minTotalFilter.value) params.set("min_total", elements.minTotalFilter.value);
+  if (elements.maxTotalFilter.value) params.set("max_total", elements.maxTotalFilter.value);
+  if (elements.trackingFilter.value) params.set("has_tracking", elements.trackingFilter.value);
+  if (elements.sentFilter.value) params.set("sent_to_carrier", elements.sentFilter.value);
+  if (elements.returnedFilter.value) params.set("returned", elements.returnedFilter.value);
+
+  if (
+    elements.dateFromFilter.value &&
+    elements.dateToFilter.value &&
+    elements.dateFromFilter.value > elements.dateToFilter.value
+  ) {
+    showError("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
+    elements.resultCount.textContent = "Bộ lọc chưa hợp lệ";
+    return;
+  }
+  if (
+    elements.minTotalFilter.value &&
+    elements.maxTotalFilter.value &&
+    Number(elements.minTotalFilter.value) > Number(elements.maxTotalFilter.value)
+  ) {
+    showError("Giá trị tối thiểu không được lớn hơn giá trị tối đa.");
+    elements.resultCount.textContent = "Bộ lọc chưa hợp lệ";
+    return;
+  }
 
   try {
     renderOrders(await fetchJson(`/api/orders?${params.toString()}`));
@@ -202,6 +271,28 @@ async function loadOrders() {
     showError(`Không thể tải đơn hàng. ${error.message}`);
     elements.resultCount.textContent = "Không tải được dữ liệu";
   }
+}
+
+function advancedFilterCount() {
+  return [
+    elements.productFilter,
+    elements.carrierFilter,
+    elements.deliveryStatusFilter,
+    elements.dateFromFilter,
+    elements.dateToFilter,
+    elements.minTotalFilter,
+    elements.maxTotalFilter,
+    elements.trackingFilter,
+    elements.sentFilter,
+    elements.returnedFilter,
+  ].filter((element) => element.value).length;
+}
+
+function updateAdvancedLabel() {
+  const count = advancedFilterCount();
+  elements.toggleAdvanced.textContent = count
+    ? `Bộ lọc nâng cao (${count})`
+    : "Bộ lọc nâng cao";
 }
 
 function detailField(label, value, className = "") {
@@ -290,6 +381,22 @@ elements.pageFilter.addEventListener("change", () => {
 });
 
 elements.statusFilter.addEventListener("change", () => {
+  state.pageNumber = 1;
+  loadOrders();
+});
+
+elements.toggleAdvanced.addEventListener("click", () => {
+  const willOpen = elements.advancedFilters.hidden;
+  elements.advancedFilters.hidden = !willOpen;
+  elements.toggleAdvanced.setAttribute("aria-expanded", String(willOpen));
+});
+
+elements.advancedFilters.addEventListener("change", updateAdvancedLabel);
+elements.advancedFilters.addEventListener("input", updateAdvancedLabel);
+
+elements.resetFilters.addEventListener("click", () => {
+  elements.filterForm.reset();
+  updateAdvancedLabel();
   state.pageNumber = 1;
   loadOrders();
 });

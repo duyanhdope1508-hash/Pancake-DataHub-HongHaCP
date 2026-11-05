@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Pancake Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=4" />
-    <script src="/assets/app.js?v=4" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=5" />
+    <script src="/assets/app.js?v=5" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -92,6 +92,72 @@
             </label>
 
             <button class="primary-button" type="submit">Tìm kiếm</button>
+
+            <div class="filter-actions">
+              <button id="toggleAdvanced" class="advanced-toggle" type="button" aria-expanded="false">
+                Bộ lọc nâng cao
+              </button>
+              <button id="resetFilters" class="reset-button" type="button">Xóa bộ lọc</button>
+            </div>
+
+            <div id="advancedFilters" class="advanced-filters" hidden>
+              <label class="advanced-field">
+                <span>Tên sản phẩm</span>
+                <input id="productFilter" type="search" maxlength="200" placeholder="Ví dụ: Váy lụa…" />
+              </label>
+              <label class="advanced-field">
+                <span>Đơn vị vận chuyển</span>
+                <select id="carrierFilter">
+                  <option value="">Tất cả đơn vị</option>
+                </select>
+              </label>
+              <label class="advanced-field">
+                <span>Trạng thái giao hàng</span>
+                <select id="deliveryStatusFilter">
+                  <option value="">Tất cả trạng thái</option>
+                </select>
+              </label>
+              <label class="advanced-field">
+                <span>Từ ngày</span>
+                <input id="dateFromFilter" type="date" />
+              </label>
+              <label class="advanced-field">
+                <span>Đến ngày</span>
+                <input id="dateToFilter" type="date" />
+              </label>
+              <label class="advanced-field">
+                <span>Giá trị từ</span>
+                <input id="minTotalFilter" type="number" min="0" step="1000" placeholder="0 ₫" />
+              </label>
+              <label class="advanced-field">
+                <span>Giá trị đến</span>
+                <input id="maxTotalFilter" type="number" min="0" step="1000" placeholder="Không giới hạn" />
+              </label>
+              <label class="advanced-field">
+                <span>Mã vận đơn</span>
+                <select id="trackingFilter">
+                  <option value="">Tất cả</option>
+                  <option value="true">Đã có mã vận đơn</option>
+                  <option value="false">Chưa có mã vận đơn</option>
+                </select>
+              </label>
+              <label class="advanced-field">
+                <span>Gửi vận chuyển</span>
+                <select id="sentFilter">
+                  <option value="">Tất cả</option>
+                  <option value="true">Đã gửi vận chuyển</option>
+                  <option value="false">Chưa gửi vận chuyển</option>
+                </select>
+              </label>
+              <label class="advanced-field">
+                <span>Hoàn hàng</span>
+                <select id="returnedFilter">
+                  <option value="">Tất cả</option>
+                  <option value="true">Có hoàn hàng</option>
+                  <option value="false">Không hoàn hàng</option>
+                </select>
+              </label>
+            </div>
           </form>
 
           <div id="errorBanner" class="error-banner" role="alert" hidden></div>
