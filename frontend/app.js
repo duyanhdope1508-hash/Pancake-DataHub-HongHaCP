@@ -3,6 +3,7 @@ const state = {
   pageSize: 20,
   totalPages: 1,
   currentUser: null,
+  staffManagement: null,
 };
 
 const elements = {
@@ -15,7 +16,28 @@ const elements = {
   appShell: document.querySelector("#appShell"),
   currentUserName: document.querySelector("#currentUserName"),
   currentUserRole: document.querySelector("#currentUserRole"),
+  manageStaffButton: document.querySelector("#manageStaffButton"),
   logoutButton: document.querySelector("#logoutButton"),
+  staffDialog: document.querySelector("#staffDialog"),
+  closeStaffDialog: document.querySelector("#closeStaffDialog"),
+  staffForm: document.querySelector("#staffForm"),
+  staffFormTitle: document.querySelector("#staffFormTitle"),
+  staffUserId: document.querySelector("#staffUserId"),
+  staffDisplayName: document.querySelector("#staffDisplayName"),
+  staffUsername: document.querySelector("#staffUsername"),
+  staffPassword: document.querySelector("#staffPassword"),
+  staffPasswordLabel: document.querySelector("#staffPasswordLabel"),
+  staffPasswordHelp: document.querySelector("#staffPasswordHelp"),
+  staffActiveField: document.querySelector("#staffActiveField"),
+  staffIsActive: document.querySelector("#staffIsActive"),
+  staffShopOptions: document.querySelector("#staffShopOptions"),
+  staffFormMessage: document.querySelector("#staffFormMessage"),
+  saveStaffButton: document.querySelector("#saveStaffButton"),
+  cancelStaffEdit: document.querySelector("#cancelStaffEdit"),
+  selectAllStaffShops: document.querySelector("#selectAllStaffShops"),
+  clearStaffShops: document.querySelector("#clearStaffShops"),
+  staffList: document.querySelector("#staffList"),
+  staffCount: document.querySelector("#staffCount"),
   filterForm: document.querySelector("#filterForm"),
   searchInput: document.querySelector("#searchInput"),
   shopFilter: document.querySelector("#shopFilter"),
@@ -280,11 +302,33 @@ async function fetchJson(url) {
 
 function showLogin(message = "") {
   state.currentUser = null;
+  state.staffManagement = null;
+  elements.ordersBody.replaceChildren();
+  elements.dialogContent.replaceChildren();
+  elements.staffList.replaceChildren();
+  elements.staffShopOptions.replaceChildren();
+  elements.filterForm.reset();
+  for (const summaryElement of [
+    elements.totalOrders,
+    elements.totalShops,
+    elements.totalPages,
+    elements.totalStatuses,
+    elements.filteredOrders,
+    elements.filteredRevenue,
+    elements.filteredDelivered,
+    elements.filteredFailed,
+  ]) {
+    summaryElement.textContent = "—";
+  }
+  elements.resultCount.textContent = "Đang tải…";
+  elements.systemStateText.textContent = "Đang kiểm tra dữ liệu…";
+  if (elements.orderDialog.open) elements.orderDialog.close();
   elements.appShell.hidden = true;
   elements.loginShell.hidden = false;
   elements.loginError.textContent = message;
   elements.loginError.hidden = !message;
   elements.loginPassword.value = "";
+  if (elements.staffDialog.open) elements.staffDialog.close();
   elements.loginUsername.focus();
 }
 
@@ -292,6 +336,7 @@ function showApplication(user) {
   state.currentUser = user;
   elements.currentUserName.textContent = text(user.display_name, user.username);
   elements.currentUserRole.textContent = user.role === "admin" ? "Quản trị viên" : "Nhân viên";
+  elements.manageStaffButton.hidden = user.role !== "admin";
   elements.syncNow.hidden = !user.can_sync;
   elements.revenueSummaryCard.hidden = !user.can_view_revenue;
   elements.loginShell.hidden = true;
@@ -336,6 +381,188 @@ async function logout() {
   }
 }
 
+function selectedStaffShopIds() {
+  return Array.from(
+    elements.staffShopOptions.querySelectorAll('input[type="checkbox"]:checked'),
+    (input) => input.value,
+  );
+}
+
+function setStaffFormMessage(message, isError = false) {
+  elements.staffFormMessage.textContent = message;
+  elements.staffFormMessage.classList.toggle("is-error", isError);
+}
+
+function renderStaffShopOptions(selectedShopIds = []) {
+  const selected = new Set(selectedShopIds);
+  const options = (state.staffManagement?.shops || []).map((shop) => {
+    const label = createElement("label", "staff-shop-option");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.value = shop.shop_id;
+    checkbox.checked = selected.has(shop.shop_id);
+    label.append(checkbox, createElement("span", "", shop.shop_name));
+    return label;
+  });
+  elements.staffShopOptions.replaceChildren(...options);
+}
+
+function resetStaffForm() {
+  elements.staffForm.reset();
+  elements.staffUserId.value = "";
+  elements.staffUsername.disabled = false;
+  elements.staffUsername.required = true;
+  elements.staffPassword.required = true;
+  elements.staffPasswordLabel.textContent = "Mật khẩu tạm thời";
+  elements.staffPasswordHelp.textContent = "Ít nhất 12 ký tự. Gửi riêng cho nhân viên.";
+  elements.staffActiveField.hidden = true;
+  elements.staffFormTitle.textContent = "Thêm nhân viên";
+  elements.saveStaffButton.textContent = "Tạo nhân viên";
+  elements.cancelStaffEdit.hidden = true;
+  setStaffFormMessage("");
+  renderStaffShopOptions();
+}
+
+function beginStaffEdit(user) {
+  elements.staffUserId.value = user.id;
+  elements.staffDisplayName.value = user.display_name;
+  elements.staffUsername.value = user.username;
+  elements.staffUsername.disabled = true;
+  elements.staffUsername.required = false;
+  elements.staffPassword.value = "";
+  elements.staffPassword.required = false;
+  elements.staffPasswordLabel.textContent = "Mật khẩu mới (không bắt buộc)";
+  elements.staffPasswordHelp.textContent = "Để trống nếu không đổi mật khẩu.";
+  elements.staffIsActive.checked = user.is_active;
+  elements.staffActiveField.hidden = false;
+  elements.staffFormTitle.textContent = `Sửa: ${user.display_name}`;
+  elements.saveStaffButton.textContent = "Lưu thay đổi";
+  elements.cancelStaffEdit.hidden = false;
+  setStaffFormMessage("");
+  renderStaffShopOptions(user.shop_ids);
+  elements.staffDisplayName.focus();
+}
+
+function renderStaffList() {
+  const users = state.staffManagement?.users || [];
+  const shopNames = new Map(
+    (state.staffManagement?.shops || []).map((shop) => [shop.shop_id, shop.shop_name]),
+  );
+  elements.staffCount.textContent = `${integerFormatter.format(users.length)} tài khoản`;
+  if (users.length === 0) {
+    elements.staffList.replaceChildren(
+      createElement("p", "staff-list-empty", "Chưa có tài khoản nhân viên."),
+    );
+    return;
+  }
+
+  const cards = users.map((user) => {
+    const card = createElement("article", "staff-card");
+    const header = createElement("div", "staff-card-header");
+    const identity = createElement("div", "staff-card-identity");
+    identity.append(
+      createElement("strong", "", user.display_name),
+      createElement("span", "", `@${user.username}`),
+    );
+    header.append(
+      identity,
+      createElement(
+        "span",
+        `staff-account-status ${user.is_active ? "is-active" : "is-locked"}`,
+        user.is_active ? "Đang hoạt động" : "Đã khóa",
+      ),
+    );
+
+    const assignedShops = user.shop_ids.map((shopId) => shopNames.get(shopId) || shopId);
+    const shops = createElement(
+      "p",
+      "staff-card-shops",
+      assignedShops.length ? assignedShops.join(" · ") : "Chưa được cấp shop",
+    );
+    const footer = createElement("div", "staff-card-footer");
+    footer.append(
+      createElement(
+        "span",
+        "",
+        user.last_login_at ? `Đăng nhập gần nhất ${formatDate(user.last_login_at)}` : "Chưa đăng nhập",
+      ),
+    );
+    const editButton = createElement("button", "secondary-button", "Sửa quyền");
+    editButton.type = "button";
+    editButton.addEventListener("click", () => beginStaffEdit(user));
+    footer.append(editButton);
+    card.append(header, shops, footer);
+    return card;
+  });
+  elements.staffList.replaceChildren(...cards);
+}
+
+async function loadStaffManagement() {
+  elements.staffList.replaceChildren(
+    createElement("p", "staff-list-empty", "Đang tải tài khoản…"),
+  );
+  state.staffManagement = await fetchJson("/api/admin/users");
+  renderStaffList();
+  resetStaffForm();
+}
+
+async function openStaffManagement() {
+  elements.staffDialog.showModal();
+  try {
+    await loadStaffManagement();
+  } catch (error) {
+    elements.staffList.replaceChildren(
+      createElement("p", "staff-list-empty is-error", `Không thể tải. ${error.message}`),
+    );
+  }
+}
+
+async function saveStaff(event) {
+  event.preventDefault();
+  setStaffFormMessage("");
+  const userId = elements.staffUserId.value;
+  const isEditing = Boolean(userId);
+  const password = elements.staffPassword.value;
+  const payload = {
+    display_name: elements.staffDisplayName.value,
+    shop_ids: selectedStaffShopIds(),
+  };
+  if (isEditing) {
+    payload.is_active = elements.staffIsActive.checked;
+    payload.password = password || null;
+  } else {
+    payload.username = elements.staffUsername.value;
+    payload.password = password;
+  }
+
+  elements.saveStaffButton.disabled = true;
+  elements.saveStaffButton.textContent = "Đang lưu…";
+  try {
+    const response = await fetch(
+      isEditing ? `/api/admin/users/${encodeURIComponent(userId)}` : "/api/admin/users",
+      {
+        method: isEditing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(payload),
+      },
+    );
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) showLogin();
+      throw new Error(result.detail || `Yêu cầu thất bại (${response.status})`);
+    }
+    await loadStaffManagement();
+    setStaffFormMessage(isEditing ? "Đã cập nhật nhân viên." : "Đã tạo nhân viên.");
+  } catch (error) {
+    setStaffFormMessage(error.message, true);
+  } finally {
+    elements.saveStaffButton.disabled = false;
+    elements.saveStaffButton.textContent = elements.staffUserId.value
+      ? "Lưu thay đổi"
+      : "Tạo nhân viên";
+  }
+}
+
 function addOption(select, value, label) {
   const option = document.createElement("option");
   option.value = String(value);
@@ -343,8 +570,19 @@ function addOption(select, value, label) {
   select.append(option);
 }
 
+function resetSelect(select, label) {
+  const option = createElement("option", "", label);
+  option.value = "";
+  select.replaceChildren(option);
+}
+
 async function loadFilters() {
   const data = await fetchJson("/api/order-filters");
+  resetSelect(elements.shopFilter, "Tất cả cửa hàng");
+  resetSelect(elements.pageFilter, "Tất cả page");
+  resetSelect(elements.statusFilter, "Tất cả tình trạng đơn");
+  resetSelect(elements.carrierFilter, "Tất cả đơn vị");
+  resetSelect(elements.deliveryStatusFilter, "Tất cả trạng thái");
   elements.totalOrders.textContent = integerFormatter.format(data.total_orders);
   elements.totalShops.textContent = integerFormatter.format(data.shops.length);
   elements.totalPages.textContent = integerFormatter.format(data.pages.length);
@@ -750,6 +988,23 @@ elements.filterForm.addEventListener("submit", (event) => {
 
 elements.loginForm.addEventListener("submit", login);
 elements.logoutButton.addEventListener("click", logout);
+elements.manageStaffButton.addEventListener("click", openStaffManagement);
+elements.staffForm.addEventListener("submit", saveStaff);
+elements.cancelStaffEdit.addEventListener("click", resetStaffForm);
+elements.selectAllStaffShops.addEventListener("click", () => {
+  for (const input of elements.staffShopOptions.querySelectorAll('input[type="checkbox"]')) {
+    input.checked = true;
+  }
+});
+elements.clearStaffShops.addEventListener("click", () => {
+  for (const input of elements.staffShopOptions.querySelectorAll('input[type="checkbox"]')) {
+    input.checked = false;
+  }
+});
+elements.closeStaffDialog.addEventListener("click", () => elements.staffDialog.close());
+elements.staffDialog.addEventListener("click", (event) => {
+  if (event.target === elements.staffDialog) elements.staffDialog.close();
+});
 
 elements.shopFilter.addEventListener("change", () => {
   state.pageNumber = 1;

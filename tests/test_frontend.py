@@ -23,6 +23,27 @@ def test_frontend_requires_login_before_loading_data() -> None:
     assert "user.can_view_revenue" in javascript
 
 
+def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    for element_id in (
+        'id="manageStaffButton"',
+        'id="staffDialog"',
+        'id="staffForm"',
+        'id="staffDisplayName"',
+        'id="staffUsername"',
+        'id="staffPassword"',
+        'id="staffIsActive"',
+        'id="staffShopOptions"',
+        'id="staffList"',
+    ):
+        assert element_id in html
+    assert "/api/admin/users" in javascript
+    assert 'method: isEditing ? "PUT" : "POST"' in javascript
+    assert "user.role !== \"admin\"" in javascript
+
+
 def test_frontend_uses_safe_dom_rendering() -> None:
     javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
     assert ".innerHTML" not in javascript
