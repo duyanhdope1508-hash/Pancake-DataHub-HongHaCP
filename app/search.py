@@ -15,14 +15,6 @@ from app.models import CoreCustomer, CoreOrder, CoreOrderItem, Shop
 from app.transform import normalize_customer_name
 
 
-def mask_phone(value: str | None) -> str | None:
-    if not value:
-        return None
-    if len(value) <= 4:
-        return "*" * len(value)
-    return ("*" * (len(value) - 4)) + value[-4:]
-
-
 def escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
@@ -279,8 +271,10 @@ def search_orders(
                 "inserted_at": order.inserted_at,
                 "updated_at": order.source_updated_at,
                 "customer_name": customer.name if customer else None,
-                "customer_phone_masked": (
-                    mask_phone(customer.primary_phone) if customer else None
+                "customer_phone": (
+                    customer.primary_phone
+                    if customer and customer.primary_phone
+                    else order.shipping_phone
                 ),
                 "customer_group_token": sha256(
                     order.customer_group_key.encode("utf-8")

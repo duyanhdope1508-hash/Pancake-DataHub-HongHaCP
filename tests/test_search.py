@@ -1,16 +1,7 @@
 from inspect import signature
 from pathlib import Path
 
-from app.search import escape_like, filtered_orders_statement, mask_phone, search_orders
-
-
-def test_mask_phone_preserves_only_last_four_characters() -> None:
-    assert mask_phone("0912345678") == "******5678"
-
-
-def test_mask_phone_handles_short_and_missing_values() -> None:
-    assert mask_phone("123") == "***"
-    assert mask_phone(None) is None
+from app.search import escape_like, filtered_orders_statement, search_orders
 
 
 def test_escape_like_prevents_wildcard_input() -> None:

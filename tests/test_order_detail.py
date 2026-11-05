@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from app.order_detail import receipt_status, serialize_order_detail
 
 
-def test_order_detail_masks_phone_and_includes_fulfillment_data() -> None:
+def test_order_detail_returns_full_contact_data_after_authentication() -> None:
     order = SimpleNamespace(
         shop_id="shop-1",
         source_order_id="order-1",
@@ -43,13 +43,12 @@ def test_order_detail_masks_phone_and_includes_fulfillment_data() -> None:
     result = serialize_order_detail(order, customer, items, shop_name="Shop One")
 
     assert result["shop_name"] == "Shop One"
-    assert result["customer"]["phone_masked"] == "******5678"
+    assert result["customer"]["phone"] == "0912345678"
     assert result["shipping"]["address"] == "Hanoi"
-    assert result["shipping"]["phone_masked"] == "******4321"
+    assert result["shipping"]["phone"] == "0987654321"
     assert result["shipping"]["tracking_code"] == "TRACK-1"
     assert result["business_status"] == "in_transit"
     assert result["business_status_label"] == "Đang giao"
-    assert "primary_phone" not in str(result)
     assert result["items"][0]["product_name"] == "Product"
 
 

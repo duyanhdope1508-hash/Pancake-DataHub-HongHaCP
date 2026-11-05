@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.business_status import business_status_label, classify_business_status
 from app.models import CoreOrder, Shop
-from app.search import filtered_orders_statement, mask_phone
+from app.search import filtered_orders_statement
 
 EXPORT_MAX_ORDERS = 100_000
 LOCAL_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
@@ -150,6 +150,7 @@ def export_orders_xlsx(
             "Ngày tạo",
             "Khách hàng",
             "Điện thoại",
+            "Địa chỉ giao hàng",
             "Tình trạng đơn",
             "Trạng thái gốc",
             "Đơn vị vận chuyển",
@@ -175,7 +176,7 @@ def export_orders_xlsx(
         worksheet.set_row(3, 28)
         worksheet.freeze_panes(4, 1)
 
-        widths = [20, 26, 15, 26, 18, 24, 16, 19, 16, 20, 20, 22, 12, 16, 16, 42]
+        widths = [20, 26, 15, 26, 18, 24, 16, 40, 19, 16, 20, 20, 22, 12, 16, 16, 42]
         for column, width in enumerate(widths):
             worksheet.set_column(column, column, width)
 
@@ -197,7 +198,12 @@ def export_orders_xlsx(
                 order.page_name,
                 _excel_datetime(order.inserted_at),
                 customer.name if customer else None,
-                mask_phone(customer.primary_phone) if customer else None,
+                (
+                    customer.primary_phone
+                    if customer and customer.primary_phone
+                    else order.shipping_phone
+                ),
+                order.shipping_address,
                 business_status_label(normalized_status),
                 order.status_name,
                 order.carrier_name,
@@ -211,13 +217,13 @@ def export_orders_xlsx(
             for column, value in enumerate(values):
                 if column == 4 and value is not None:
                     worksheet.write_datetime(excel_row, column, value, date_format)
-                elif column in {12, 13, 14} and value is not None:
+                elif column in {13, 14, 15} and value is not None:
                     numeric_value = float(value)
                     worksheet.write_number(
                         excel_row,
                         column,
                         numeric_value,
-                        money_format if column in {13, 14} else number_format,
+                        money_format if column in {14, 15} else number_format,
                     )
                 else:
                     _write_text(worksheet, excel_row, column, value, text_format)

@@ -454,7 +454,7 @@ function orderRow(order, sameCustomer = false) {
   const customerCell = document.createElement("td");
   customerCell.append(
     createElement("strong", "", order.customer_name),
-    createElement("span", "secondary-text", order.customer_phone_masked),
+    createElement("span", "secondary-text", order.customer_phone),
   );
   if (sameCustomer) {
     customerCell.append(createElement("span", "customer-group-note", "Trùng tên / SĐT"));
@@ -695,7 +695,7 @@ function renderOrderDetail(order) {
     detailField("Cửa hàng", order.shop_name),
     detailField("Shop ID", order.shop_id),
     detailField("Khách hàng", order.customer?.name),
-    detailField("Điện thoại", order.customer?.phone_masked),
+    detailField("Điện thoại", order.customer?.phone),
     detailField("Page", order.page_name),
     detailField("Tình trạng đơn", order.business_status_label),
     detailField("Giá trị", formatMoney(order.total_price, order.currency)),
@@ -707,7 +707,7 @@ function renderOrderDetail(order) {
     detailField("Trạng thái giao hàng", shipping.delivery_status),
     detailField("Kết quả nhận hàng", receiptStatusLabel(shipping.receipt_status)),
     detailField("Người nhận", shipping.recipient_name),
-    detailField("SĐT nhận hàng", shipping.phone_masked),
+    detailField("SĐT nhận hàng", shipping.phone),
     detailField("Phí hoàn", formatMoney(shipping.return_fee, order.currency)),
     detailField("Địa chỉ", shipping.address, "detail-field-wide"),
     detailField("Lý do hoàn / hủy", shipping.returned_reason, "detail-field-wide"),

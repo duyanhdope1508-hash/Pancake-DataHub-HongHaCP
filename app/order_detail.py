@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 
 from app.business_status import business_status_label, classify_business_status
 from app.models import CoreCustomer, CoreOrder, CoreOrderItem, Shop
-from app.search import mask_phone
 
 
 class OrderNotFoundError(LookupError):
@@ -55,7 +54,7 @@ def serialize_order_detail(
         "updated_at": order.source_updated_at,
         "shipping": {
             "recipient_name": order.shipping_name,
-            "phone_masked": mask_phone(order.shipping_phone),
+            "phone": order.shipping_phone,
             "address": order.shipping_address,
             "tracking_code": order.tracking_code,
             "tracking_link": order.tracking_link,
@@ -70,7 +69,7 @@ def serialize_order_detail(
         },
         "customer": {
             "name": customer.name if customer else None,
-            "phone_masked": mask_phone(customer.primary_phone) if customer else None,
+            "phone": customer.primary_phone if customer else None,
         },
         "items": [
             {
