@@ -34,6 +34,107 @@ body {
   color: var(--ink);
 }
 
+[hidden] {
+  display: none !important;
+}
+
+.login-shell {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.login-card {
+  width: min(420px, 100%);
+  padding: 38px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: var(--shadow);
+}
+
+.login-card h1 {
+  margin: 8px 0 10px;
+  font-size: 24px;
+  letter-spacing: -0.025em;
+}
+
+.login-card > p:not(.section-kicker) {
+  margin: 0 0 26px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.login-form {
+  display: grid;
+  gap: 16px;
+}
+
+.login-form label {
+  display: grid;
+  gap: 7px;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.login-form input {
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+}
+
+.login-form input:focus {
+  border-color: var(--accent);
+  outline: 2px solid rgba(30, 107, 77, 0.14);
+}
+
+.login-error {
+  padding: 10px 12px;
+  border-left: 3px solid var(--danger);
+  background: #fff0ee;
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.login-form .primary-button {
+  min-height: 44px;
+  margin-top: 2px;
+}
+
+.account-state {
+  display: grid;
+  justify-items: end;
+  line-height: 1.2;
+}
+
+.account-state strong {
+  font-size: 12px;
+}
+
+.account-state span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.logout-button {
+  padding: 6px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.logout-button:hover {
+  color: var(--danger);
+}
+
 button,
 input,
 select {

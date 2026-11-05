@@ -1,19 +1,28 @@
 from contextlib import asynccontextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from time import monotonic
 from typing import Annotated, Literal
 
-from fastapi import FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import text
+from pydantic import BaseModel, Field
+from sqlalchemy import select, text
 from starlette.background import BackgroundTask
 
+from app.auth import (
+    SESSION_COOKIE_NAME,
+    authenticate_user_session,
+    create_user_session,
+    is_public_path,
+    revoke_user_session,
+)
 from app.config import get_settings
 from app.db import SessionLocal, init_db
+from app.models import AuditLog, User
 from app.order_detail import AmbiguousOrderError, OrderNotFoundError, get_order_detail
 from app.order_export import ExportLimitExceeded, export_orders_xlsx
 from app.order_filters import order_filters
@@ -41,6 +50,30 @@ app.mount("/assets", StaticFiles(directory=frontend_dir), name="assets")
 ORDER_FILTER_CACHE_SECONDS = 300
 
 
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    password: str = Field(min_length=1, max_length=256)
+
+
+def _safe_user(user: User) -> dict:
+    return {
+        "id": user.id,
+        "username": user.username,
+        "display_name": user.display_name,
+        "role": user.role,
+    }
+
+
+def _add_security_headers(response: Response) -> Response:
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; script-src 'self'; style-src 'self'; "
+        "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
+    )
+    return response
+
+
 @lru_cache(maxsize=2)
 def _cached_order_filters(time_bucket: int) -> dict:
     del time_bucket
@@ -50,14 +83,22 @@ def _cached_order_filters(time_bucket: int) -> dict:
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    if request.url.path.startswith("/api/") and not is_public_path(request.url.path):
+        raw_token = request.cookies.get(SESSION_COOKIE_NAME)
+        with SessionLocal() as session:
+            authenticated = authenticate_user_session(session, raw_token)
+        if authenticated is None:
+            response = JSONResponse(
+                status_code=401,
+                content={"detail": "Bạn cần đăng nhập để sử dụng DataHub."},
+            )
+            response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+            return _add_security_headers(response)
+        request.state.current_user = authenticated.user
+        request.state.auth_session_id = authenticated.session.id
+
     response = await call_next(request)
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Referrer-Policy"] = "no-referrer"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; script-src 'self'; style-src 'self'; "
-        "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
-    )
-    return response
+    return _add_security_headers(response)
 
 
 @app.get("/", include_in_schema=False)
@@ -70,6 +111,97 @@ def health() -> dict[str, str]:
     with SessionLocal() as session:
         session.execute(text("SELECT 1"))
     return {"status": "ok"}
+
+
+@app.post("/api/auth/login")
+def login(payload: LoginRequest, response: Response) -> dict:
+    from app.security import (
+        normalize_username,
+        password_needs_rehash,
+        verify_password_or_dummy,
+    )
+
+    settings = get_settings()
+    try:
+        username = normalize_username(payload.username)
+    except ValueError:
+        username = ""
+
+    with SessionLocal() as session:
+        user = session.scalar(select(User).where(User.username == username)) if username else None
+        valid_password = verify_password_or_dummy(
+            user.password_hash if user is not None else None,
+            payload.password,
+        )
+        if user is None or not user.is_active or not valid_password:
+            session.add(
+                AuditLog(
+                    actor_user_id=user.id if user is not None else None,
+                    action="auth.login",
+                    result="denied",
+                    metadata_json={"username": username},
+                )
+            )
+            session.commit()
+            raise HTTPException(status_code=401, detail="Tên đăng nhập hoặc mật khẩu không đúng.")
+
+        if password_needs_rehash(user.password_hash):
+            from app.security import hash_password
+
+            user.password_hash = hash_password(payload.password)
+        user.last_login_at = datetime.now(UTC)
+        user_session, raw_token = create_user_session(
+            session,
+            user_id=user.id,
+            session_hours=settings.auth_session_hours,
+        )
+        session.add(
+            AuditLog(
+                actor_user_id=user.id,
+                action="auth.login",
+                resource_type="session",
+                resource_id=user_session.id,
+                result="success",
+                metadata_json={},
+            )
+        )
+        session.commit()
+
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        raw_token,
+        max_age=settings.auth_session_hours * 3600,
+        httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite="strict",
+        path="/",
+    )
+    return {"user": _safe_user(user)}
+
+
+@app.get("/api/auth/me")
+def current_user(request: Request) -> dict:
+    return {"user": _safe_user(request.state.current_user)}
+
+
+@app.post("/api/auth/logout")
+def logout(request: Request, response: Response) -> dict[str, str]:
+    raw_token = request.cookies.get(SESSION_COOKIE_NAME)
+    with SessionLocal() as session:
+        revoke_user_session(session, raw_token)
+        session.add(
+            AuditLog(
+                actor_user_id=request.state.current_user.id,
+                action="auth.logout",
+                resource_type="session",
+                resource_id=request.state.auth_session_id,
+                result="success",
+                metadata_json={},
+            )
+        )
+        session.commit()
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    return {"status": "logged_out"}
 
 
 @app.get("/api/system-status")

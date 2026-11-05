@@ -11,6 +11,9 @@ def test_system_status_route_is_registered() -> None:
     assert "/api/sync" in paths
     assert "/api/orders/summary" in paths
     assert "/api/orders/export" in paths
+    assert "/api/auth/login" in paths
+    assert "/api/auth/logout" in paths
+    assert "/api/auth/me" in paths
 
 
 @pytest.mark.asyncio

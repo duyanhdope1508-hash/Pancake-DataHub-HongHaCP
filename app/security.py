@@ -4,6 +4,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
 
 _PASSWORD_HASHER = PasswordHasher()
+_DUMMY_PASSWORD_HASH = _PASSWORD_HASHER.hash("datahub-dummy-password-not-used-by-any-user")
 _USERNAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
 
 
@@ -34,6 +35,12 @@ def verify_password(password_hash: str, password: str) -> bool:
         return _PASSWORD_HASHER.verify(password_hash, password)
     except (InvalidHashError, VerificationError, VerifyMismatchError):
         return False
+
+
+def verify_password_or_dummy(password_hash: str | None, password: str) -> bool:
+    candidate_hash = password_hash or _DUMMY_PASSWORD_HASH
+    verified = verify_password(candidate_hash, password)
+    return password_hash is not None and verified
 
 
 def password_needs_rehash(password_hash: str) -> bool:

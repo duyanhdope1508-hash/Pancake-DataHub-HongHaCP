@@ -9,6 +9,17 @@ def test_frontend_assets_exist() -> None:
     assert (FRONTEND / "app.js").is_file()
 
 
+def test_frontend_requires_login_before_loading_data() -> None:
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="loginForm"' in html
+    assert 'id="appShell" class="app-shell" hidden' in html
+    assert "/api/auth/me" in javascript
+    assert "/api/auth/login" in javascript
+    assert "/api/auth/logout" in javascript
+
+
 def test_frontend_uses_safe_dom_rendering() -> None:
     javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
     assert ".innerHTML" not in javascript

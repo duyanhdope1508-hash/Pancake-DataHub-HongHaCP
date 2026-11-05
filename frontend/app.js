@@ -2,9 +2,20 @@ const state = {
   pageNumber: 1,
   pageSize: 20,
   totalPages: 1,
+  currentUser: null,
 };
 
 const elements = {
+  loginShell: document.querySelector("#loginShell"),
+  loginForm: document.querySelector("#loginForm"),
+  loginUsername: document.querySelector("#loginUsername"),
+  loginPassword: document.querySelector("#loginPassword"),
+  loginError: document.querySelector("#loginError"),
+  loginButton: document.querySelector("#loginButton"),
+  appShell: document.querySelector("#appShell"),
+  currentUserName: document.querySelector("#currentUserName"),
+  currentUserRole: document.querySelector("#currentUserRole"),
+  logoutButton: document.querySelector("#logoutButton"),
   filterForm: document.querySelector("#filterForm"),
   searchInput: document.querySelector("#searchInput"),
   shopFilter: document.querySelector("#shopFilter"),
@@ -256,8 +267,70 @@ function deleteSavedFilter() {
 
 async function fetchJson(url) {
   const response = await fetch(url, { headers: { Accept: "application/json" } });
-  if (!response.ok) throw new Error(`Yêu cầu thất bại (${response.status})`);
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    const error = new Error(payload.detail || `Yêu cầu thất bại (${response.status})`);
+    error.status = response.status;
+    if (response.status === 401) showLogin();
+    throw error;
+  }
   return response.json();
+}
+
+function showLogin(message = "") {
+  state.currentUser = null;
+  elements.appShell.hidden = true;
+  elements.loginShell.hidden = false;
+  elements.loginError.textContent = message;
+  elements.loginError.hidden = !message;
+  elements.loginPassword.value = "";
+  elements.loginUsername.focus();
+}
+
+function showApplication(user) {
+  state.currentUser = user;
+  elements.currentUserName.textContent = text(user.display_name, user.username);
+  elements.currentUserRole.textContent = user.role === "admin" ? "Quản trị viên" : "Nhân viên";
+  elements.loginShell.hidden = true;
+  elements.appShell.hidden = false;
+}
+
+async function login(event) {
+  event.preventDefault();
+  elements.loginError.hidden = true;
+  elements.loginButton.disabled = true;
+  elements.loginButton.textContent = "Đang đăng nhập…";
+  try {
+    const response = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        username: elements.loginUsername.value,
+        password: elements.loginPassword.value,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.detail || "Không thể đăng nhập.");
+    showApplication(payload.user);
+    elements.loginPassword.value = "";
+    renderSavedFilters();
+    await Promise.all([loadFilters(), loadSystemStatus(), loadOrders()]);
+  } catch (error) {
+    showLogin(error.message);
+  } finally {
+    elements.loginButton.disabled = false;
+    elements.loginButton.textContent = "Đăng nhập";
+  }
+}
+
+async function logout() {
+  elements.logoutButton.disabled = true;
+  try {
+    await fetch("/api/auth/logout", { method: "POST", headers: { Accept: "application/json" } });
+  } finally {
+    elements.logoutButton.disabled = false;
+    showLogin();
+  }
 }
 
 function addOption(select, value, label) {
@@ -670,6 +743,9 @@ elements.filterForm.addEventListener("submit", (event) => {
   loadOrders();
 });
 
+elements.loginForm.addEventListener("submit", login);
+elements.logoutButton.addEventListener("click", logout);
+
 elements.shopFilter.addEventListener("change", () => {
   state.pageNumber = 1;
   loadOrders();
@@ -737,15 +813,19 @@ elements.orderDialog.addEventListener("click", (event) => {
 
 async function initialize() {
   try {
+    const auth = await fetchJson("/api/auth/me");
+    showApplication(auth.user);
     renderSavedFilters();
     await Promise.all([loadFilters(), loadSystemStatus(), loadOrders()]);
   } catch (error) {
+    if (error.status === 401) return;
     showError(`Không thể khởi tạo cổng tra cứu. ${error.message}`);
   }
 }
 
 initialize();
 window.setInterval(() => {
+  if (!state.currentUser) return;
   loadSystemStatus().catch(() => {
     elements.systemStateText.textContent = "Không kiểm tra được đồng bộ";
   });

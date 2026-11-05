@@ -5,16 +5,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=11" />
-    <script src="/assets/app.js?v=11" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=12" />
+    <script src="/assets/app.js?v=12" defer></script>
   </head>
   <body>
-    <div class="app-shell">
+    <main id="loginShell" class="login-shell" hidden>
+      <section class="login-card" aria-labelledby="loginTitle">
+        <p class="section-kicker">Hệ thống nội bộ</p>
+        <h1 id="loginTitle"><span>HỒNG HÀ CP</span> <span class="brand-accent">DATAHUB</span></h1>
+        <p>Đăng nhập để tra cứu và vận hành dữ liệu đơn hàng.</p>
+        <form id="loginForm" class="login-form">
+          <label>
+            <span>Tên đăng nhập</span>
+            <input id="loginUsername" name="username" autocomplete="username" required maxlength="64" autofocus />
+          </label>
+          <label>
+            <span>Mật khẩu</span>
+            <input id="loginPassword" name="password" type="password" autocomplete="current-password" required maxlength="256" />
+          </label>
+          <div id="loginError" class="login-error" role="alert" hidden></div>
+          <button id="loginButton" class="primary-button" type="submit">Đăng nhập</button>
+        </form>
+      </section>
+    </main>
+
+    <div id="appShell" class="app-shell" hidden>
       <header class="topbar">
         <div class="brand-copy">
           <h1><span>HỒNG HÀ CP</span> <span class="brand-accent">DATAHUB</span></h1>
         </div>
         <div class="topbar-actions">
+          <div class="account-state">
+            <strong id="currentUserName">—</strong>
+            <span id="currentUserRole">—</span>
+          </div>
+          <button id="logoutButton" class="logout-button" type="button">Đăng xuất</button>
           <div class="system-state">
             <span class="state-dot" aria-hidden="true"></span>
             <span id="systemStateText">Đang kiểm tra dữ liệu…</span>

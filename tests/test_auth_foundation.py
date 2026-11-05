@@ -5,7 +5,12 @@ from sqlalchemy import CheckConstraint
 
 from app.create_admin import create_admin
 from app.models import AuditLog, User, UserSession, UserShopAccess
-from app.security import hash_password, normalize_username, verify_password
+from app.security import (
+    hash_password,
+    normalize_username,
+    verify_password,
+    verify_password_or_dummy,
+)
 
 
 def test_auth_models_have_required_security_fields() -> None:
@@ -43,6 +48,8 @@ def test_password_is_hashed_with_argon2id_and_verifies() -> None:
     assert "correct horse" not in password_hash
     assert verify_password(password_hash, "correct horse battery staple") is True
     assert verify_password(password_hash, "wrong password") is False
+    assert verify_password("not-a-password-hash", "wrong password") is False
+    assert verify_password_or_dummy(None, "wrong password") is False
 
 
 def test_username_is_normalized_and_validated() -> None:
