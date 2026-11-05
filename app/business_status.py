@@ -1,8 +1,6 @@
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import case, func, or_
-
 from app.models import CoreOrder
 
 BUSINESS_STATUS_LABELS = {
@@ -59,42 +57,4 @@ def business_status_label(value: str) -> str:
 
 
 def business_status_expression() -> Any:
-    order_state = func.lower(func.coalesce(CoreOrder.status_name, ""))
-    delivery_state = func.lower(func.coalesce(CoreOrder.delivery_status, ""))
-    return case(
-        (or_(CoreOrder.status == 6, order_state == "canceled"), "canceled"),
-        (
-            or_(
-                CoreOrder.status.in_([4, 5]),
-                order_state.in_(["returning", "returned"]),
-            ),
-            "returned",
-        ),
-        (
-            or_(
-                CoreOrder.status.in_([3, 16]),
-                order_state.in_(["delivered", "received_money"]),
-            ),
-            "delivered",
-        ),
-        (delivery_state == "canceled", "canceled"),
-        (delivery_state.in_(["returning", "returned"]), "returned"),
-        (delivery_state == "delivered", "delivered"),
-        (
-            or_(
-                CoreOrder.status.in_([2, 9]),
-                order_state.in_(["shipped", "pending"]),
-                delivery_state.in_(
-                    [
-                        "request_received",
-                        "on_the_way",
-                        "out_for_delivery",
-                        "undeliverable",
-                    ]
-                ),
-                CoreOrder.sent_to_carrier_at.is_not(None),
-            ),
-            "in_transit",
-        ),
-        else_="not_sent",
-    )
+    return CoreOrder.business_status

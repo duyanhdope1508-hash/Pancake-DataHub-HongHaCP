@@ -6,6 +6,7 @@ from sqlalchemy import and_, delete, or_, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
+from app.business_status import classify_business_status
 from app.db import SessionLocal
 from app.models import CoreCustomer, CoreOrder, CoreOrderItem, RawOrder
 
@@ -170,6 +171,17 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
                     or shipping.get("address")
                 )
                 page_id, page_name = extract_page(payload)
+                status = (
+                    payload.get("status")
+                    if isinstance(payload.get("status"), int)
+                    else None
+                )
+                status_name = _string(payload.get("status_name"))
+                delivery_status = _string(partner.get("partner_status"))
+                sent_to_carrier_at = (
+                    parse_datetime(payload.get("time_send_partner"))
+                    or parse_datetime(partner.get("picked_up_at"))
+                )
                 order_batch.append(
                     {
                         "shop_id": raw_order.shop_id,
@@ -177,12 +189,14 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
                         "source_customer_id": customer_id,
                         "source_page_id": page_id,
                         "page_name": page_name,
-                        "status": (
-                            payload.get("status")
-                            if isinstance(payload.get("status"), int)
-                            else None
+                        "status": status,
+                        "status_name": status_name,
+                        "business_status": classify_business_status(
+                            status=status,
+                            status_name=status_name,
+                            delivery_status=delivery_status,
+                            sent_to_carrier_at=sent_to_carrier_at,
                         ),
-                        "status_name": _string(payload.get("status_name")),
                         "inserted_at": parse_datetime(payload.get("inserted_at")),
                         "source_updated_at": parse_datetime(payload.get("updated_at")),
                         "total_price": parse_decimal(payload.get("total_price")),
@@ -203,11 +217,8 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
                             _string(partner.get("partner_name"))
                             or _string(partner.get("service_partner"))
                         ),
-                        "delivery_status": _string(partner.get("partner_status")),
-                        "sent_to_carrier_at": (
-                            parse_datetime(payload.get("time_send_partner"))
-                            or parse_datetime(partner.get("picked_up_at"))
-                        ),
+                        "delivery_status": delivery_status,
+                        "sent_to_carrier_at": sent_to_carrier_at,
                         "returned_reason": (
                             _string(payload.get("returned_reason_name"))
                             or _string(payload.get("returned_reason"))

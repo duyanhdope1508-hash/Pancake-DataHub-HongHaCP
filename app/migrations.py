@@ -197,6 +197,52 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261105_008_materialize_business_status",
+        (
+            (
+                "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS "
+                "business_status VARCHAR(32)"
+            ),
+            """
+            UPDATE core_orders
+            SET business_status = CASE
+                WHEN status = 6 OR LOWER(COALESCE(status_name, '')) = 'canceled'
+                    THEN 'canceled'
+                WHEN status IN (4, 5)
+                    OR LOWER(COALESCE(status_name, '')) IN ('returning', 'returned')
+                    THEN 'returned'
+                WHEN status IN (3, 16)
+                    OR LOWER(COALESCE(status_name, '')) IN ('delivered', 'received_money')
+                    THEN 'delivered'
+                WHEN LOWER(COALESCE(delivery_status, '')) = 'canceled'
+                    THEN 'canceled'
+                WHEN LOWER(COALESCE(delivery_status, '')) IN ('returning', 'returned')
+                    THEN 'returned'
+                WHEN LOWER(COALESCE(delivery_status, '')) = 'delivered'
+                    THEN 'delivered'
+                WHEN status IN (2, 9)
+                    OR LOWER(COALESCE(status_name, '')) IN ('shipped', 'pending')
+                    OR LOWER(COALESCE(delivery_status, '')) IN (
+                        'request_received', 'on_the_way', 'out_for_delivery', 'undeliverable'
+                    )
+                    OR sent_to_carrier_at IS NOT NULL
+                    THEN 'in_transit'
+                ELSE 'not_sent'
+            END
+            WHERE business_status IS NULL
+            """,
+            (
+                "ALTER TABLE core_orders ALTER COLUMN business_status "
+                "SET DEFAULT 'not_sent'"
+            ),
+            "ALTER TABLE core_orders ALTER COLUMN business_status SET NOT NULL",
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_business_status "
+                "ON core_orders (business_status)"
+            ),
+        ),
+    ),
 )
 
 

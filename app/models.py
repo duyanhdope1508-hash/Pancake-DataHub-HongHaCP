@@ -188,6 +188,7 @@ class CoreOrder(Base):
     __tablename__ = "core_orders"
     __table_args__ = (
         Index("ix_core_orders_shop_status", "shop_id", "status"),
+        Index("ix_core_orders_business_status", "business_status"),
         Index("ix_core_orders_shop_updated", "shop_id", "source_updated_at"),
         Index("ix_core_orders_shop_customer", "shop_id", "source_customer_id"),
         Index("ix_core_orders_shop_page", "shop_id", "source_page_id"),
@@ -216,6 +217,9 @@ class CoreOrder(Base):
     page_name: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status_name: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    business_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="not_sent"
+    )
     inserted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     source_updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

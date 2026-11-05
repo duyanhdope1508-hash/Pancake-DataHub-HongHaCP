@@ -1,6 +1,11 @@
 from datetime import UTC, datetime
 
-from app.business_status import business_status_label, classify_business_status
+from app.business_status import (
+    business_status_expression,
+    business_status_label,
+    classify_business_status,
+)
+from app.models import CoreOrder
 
 
 def classify(
@@ -36,3 +41,7 @@ def test_shipping_signals_distinguish_in_transit_from_not_sent() -> None:
     assert classify(None, None, sent=True) == "in_transit"
     assert classify(0, "new") == "not_sent"
     assert business_status_label("not_sent") == "Chưa gửi"
+
+
+def test_database_filters_use_materialized_business_status() -> None:
+    assert business_status_expression() is CoreOrder.business_status
