@@ -34,6 +34,14 @@ from app.order_export import ExportLimitExceeded, export_orders_xlsx
 from app.order_filters import order_filters
 from app.search import search_orders, summarize_orders
 from app.status import database_status
+from app.user_management import (
+    DuplicateUsernameError,
+    StaffNotFoundError,
+    UnknownShopError,
+    create_staff,
+    management_snapshot,
+    update_staff,
+)
 from app.worker import run_cycle
 
 
@@ -59,6 +67,20 @@ ORDER_FILTER_CACHE_SECONDS = 300
 class LoginRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     password: str = Field(min_length=1, max_length=256)
+
+
+class CreateStaffRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=64)
+    display_name: str = Field(min_length=1, max_length=255)
+    password: str = Field(min_length=12, max_length=256)
+    shop_ids: list[str] = Field(default_factory=list, max_length=100)
+
+
+class UpdateStaffRequest(BaseModel):
+    display_name: str = Field(min_length=1, max_length=255)
+    is_active: bool
+    shop_ids: list[str] = Field(default_factory=list, max_length=100)
+    password: str | None = Field(default=None, min_length=12, max_length=256)
 
 
 def _safe_user(user: User) -> dict:
@@ -213,6 +235,92 @@ def logout(request: Request, response: Response) -> dict[str, str]:
         session.commit()
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
     return {"status": "logged_out"}
+
+
+def _staff_error_response(exc: Exception) -> HTTPException:
+    if isinstance(exc, DuplicateUsernameError):
+        return HTTPException(status_code=409, detail=str(exc))
+    if isinstance(exc, UnknownShopError):
+        return HTTPException(status_code=422, detail="Có cửa hàng không tồn tại.")
+    if isinstance(exc, StaffNotFoundError):
+        return HTTPException(status_code=404, detail="Không tìm thấy nhân viên.")
+    return HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/api/admin/users")
+def admin_users(request: Request) -> dict:
+    require_admin(request.state.current_user)
+    with SessionLocal() as session:
+        return management_snapshot(session)
+
+
+@app.post("/api/admin/users", status_code=201)
+def admin_create_staff(request: Request, payload: CreateStaffRequest) -> dict:
+    actor = request.state.current_user
+    require_admin(actor)
+    with SessionLocal() as session:
+        try:
+            user = create_staff(
+                session,
+                username=payload.username,
+                display_name=payload.display_name,
+                password=payload.password,
+                shop_ids=payload.shop_ids,
+            )
+        except (DuplicateUsernameError, UnknownShopError, ValueError) as exc:
+            session.rollback()
+            raise _staff_error_response(exc) from exc
+        session.add(
+            AuditLog(
+                actor_user_id=actor.id,
+                action="staff.create",
+                resource_type="user",
+                resource_id=user.id,
+                result="success",
+                metadata_json={"shop_count": len(payload.shop_ids)},
+            )
+        )
+        session.commit()
+        return {"status": "created", "user_id": user.id}
+
+
+@app.put("/api/admin/users/{user_id}")
+def admin_update_staff(
+    request: Request,
+    user_id: str,
+    payload: UpdateStaffRequest,
+) -> dict:
+    actor = request.state.current_user
+    require_admin(actor)
+    with SessionLocal() as session:
+        try:
+            user = update_staff(
+                session,
+                user_id=user_id,
+                display_name=payload.display_name,
+                is_active=payload.is_active,
+                shop_ids=payload.shop_ids,
+                password=payload.password,
+            )
+        except (StaffNotFoundError, UnknownShopError, ValueError) as exc:
+            session.rollback()
+            raise _staff_error_response(exc) from exc
+        session.add(
+            AuditLog(
+                actor_user_id=actor.id,
+                action="staff.update",
+                resource_type="user",
+                resource_id=user.id,
+                result="success",
+                metadata_json={
+                    "active": payload.is_active,
+                    "password_changed": bool(payload.password),
+                    "shop_count": len(payload.shop_ids),
+                },
+            )
+        )
+        session.commit()
+        return {"status": "updated", "user_id": user.id}
 
 
 @app.get("/api/system-status")
