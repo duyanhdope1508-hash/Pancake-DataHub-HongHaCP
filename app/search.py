@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.business_status import (
     business_status_expression,
@@ -11,6 +11,7 @@ from app.business_status import (
     classify_business_status,
 )
 from app.models import CoreCustomer, CoreOrder, CoreOrderItem
+from app.transform import normalize_customer_name
 
 
 def mask_phone(value: str | None) -> str | None:
@@ -70,8 +71,24 @@ def filtered_orders_statement(
     clean_query = query.strip() if query else ""
     if clean_query:
         escaped_query = escape_like(clean_query)
+        normalized_name = normalize_customer_name(clean_query)
+        exact_order = aliased(CoreOrder)
+        exact_name_exists = (
+            select(1)
+            .select_from(exact_order)
+            .where(exact_order.customer_name_search == normalized_name)
+            .exists()
+        )
         statement = statement.where(
-            CoreOrder.search_text.ilike(f"%{escaped_query}%", escape="\\")
+            or_(
+                CoreOrder.customer_name_search == normalized_name,
+                and_(
+                    ~exact_name_exists,
+                    CoreOrder.search_text.ilike(
+                        f"%{escaped_query}%", escape="\\"
+                    ),
+                ),
+            )
         )
 
     shop_ids = _filter_values(shop_id)

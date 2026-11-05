@@ -65,3 +65,9 @@ def test_migrations_add_trigram_indexes_for_keyword_search() -> None:
     ):
         assert index_name in source
 
+
+def test_search_prefers_exact_customer_name_before_broad_text() -> None:
+    source = Path("app/search.py").read_text(encoding="utf-8")
+    assert "exact_name_exists" in source
+    assert "customer_name_search == normalized_name" in source
+

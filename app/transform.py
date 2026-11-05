@@ -38,6 +38,12 @@ def normalize_phone(value: Any) -> str | None:
     return digits or None
 
 
+def normalize_customer_name(value: Any) -> str:
+    if not isinstance(value, str):
+        return ""
+    return " ".join(value.split()).lower()
+
+
 def build_order_search_text(*values: Any) -> str:
     return " ".join(
         str(value).strip()
@@ -244,6 +250,9 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
                             or _string(payload.get("returned_reason"))
                         ),
                         "return_fee": parse_decimal(payload.get("return_fee")),
+                        "customer_name_search": normalize_customer_name(
+                            customer_name or shipping_name
+                        ),
                         "search_text": build_order_search_text(
                             raw_order.source_order_id,
                             tracking_code,

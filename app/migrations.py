@@ -340,6 +340,47 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261105_012_add_exact_customer_name_search",
+        (
+            (
+                "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS "
+                "customer_name_search TEXT"
+            ),
+            """
+            UPDATE core_orders AS orders
+            SET customer_name_search = LOWER(
+                REGEXP_REPLACE(
+                    BTRIM(
+                        COALESCE(
+                            (
+                                SELECT customers.name
+                                FROM core_customers AS customers
+                                WHERE customers.shop_id = orders.shop_id
+                                  AND customers.source_customer_id = orders.source_customer_id
+                            ),
+                            orders.shipping_name,
+                            ''
+                        )
+                    ),
+                    '\\s+',
+                    ' ',
+                    'g'
+                )
+            )
+            WHERE customer_name_search IS NULL
+            """,
+            (
+                "ALTER TABLE core_orders ALTER COLUMN customer_name_search "
+                "SET DEFAULT ''"
+            ),
+            "ALTER TABLE core_orders ALTER COLUMN customer_name_search SET NOT NULL",
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_customer_name_search "
+                "ON core_orders (customer_name_search)"
+            ),
+        ),
+    ),
 )
 
 

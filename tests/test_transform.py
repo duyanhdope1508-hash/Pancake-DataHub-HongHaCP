@@ -4,6 +4,7 @@ from inspect import signature
 from app.transform import (
     build_order_search_text,
     extract_page,
+    normalize_customer_name,
     normalize_phone,
     parse_datetime,
     parse_decimal,
@@ -24,6 +25,11 @@ def test_build_order_search_text_skips_empty_values() -> None:
     assert build_order_search_text("DH-1", None, "", "Khách hàng", 123) == (
         "DH-1 Khách hàng 123"
     )
+
+
+def test_normalize_customer_name_ignores_case_and_extra_spaces() -> None:
+    assert normalize_customer_name("  Nguyễn   Thị HỒNG ") == "nguyễn thị hồng"
+    assert normalize_customer_name(None) == ""
 
 
 def test_parse_datetime_accepts_utc_suffix() -> None:
