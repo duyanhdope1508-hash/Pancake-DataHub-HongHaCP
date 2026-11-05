@@ -1231,6 +1231,17 @@ td {
   transform: translateY(0);
 }
 
+.site-footer {
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #78827c;
+  font-size: 11px;
+  letter-spacing: 0.025em;
+}
+
 @media (max-width: 1180px) {
   .overview {
     align-items: stretch;
@@ -1353,5 +1364,15 @@ td {
     min-width: auto;
     padding: 0 9px;
     font-size: 11px;
+  }
+
+  .site-footer {
+    min-height: 68px;
+    flex-direction: column;
+    gap: 3px;
+  }
+
+  .site-footer span[aria-hidden="true"] {
+    display: none;
   }
 }

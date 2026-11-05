@@ -71,4 +71,6 @@ def test_frontend_uses_compact_dashboard_with_help_tooltips() -> None:
     assert "data-tooltip=" in html
     assert "HỒNG HÀ CP DATAHUB" in html
     assert "info-tip drop-down" in html
+    assert 'class="site-footer"' in html
+    assert "Developed by Daniel Ng" in html
 
