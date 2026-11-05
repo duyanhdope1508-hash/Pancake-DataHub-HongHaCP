@@ -20,6 +20,12 @@ from app.auth import (
     is_public_path,
     revoke_user_session,
 )
+from app.authorization import (
+    authorized_shop_ids,
+    can_view_revenue,
+    require_admin,
+    scoped_shop_filter,
+)
 from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.models import AuditLog, User
@@ -61,6 +67,8 @@ def _safe_user(user: User) -> dict:
         "username": user.username,
         "display_name": user.display_name,
         "role": user.role,
+        "can_sync": user.role == "admin",
+        "can_view_revenue": can_view_revenue(user),
     }
 
 
@@ -74,11 +82,14 @@ def _add_security_headers(response: Response) -> Response:
     return response
 
 
-@lru_cache(maxsize=2)
-def _cached_order_filters(time_bucket: int) -> dict:
+@lru_cache(maxsize=128)
+def _cached_order_filters(
+    time_bucket: int,
+    shop_ids: tuple[str, ...] | None,
+) -> dict:
     del time_bucket
     with SessionLocal() as session:
-        return order_filters(session)
+        return order_filters(session, shop_ids)
 
 
 @app.middleware("http")
@@ -205,12 +216,15 @@ def logout(request: Request, response: Response) -> dict[str, str]:
 
 
 @app.get("/api/system-status")
-def system_status() -> dict:
-    return database_status()
+def system_status(request: Request) -> dict:
+    with SessionLocal() as session:
+        shop_ids = authorized_shop_ids(session, request.state.current_user)
+    return database_status(shop_ids)
 
 
 @app.post("/api/sync")
-async def sync_now() -> dict:
+async def sync_now(request: Request) -> dict:
+    require_admin(request.state.current_user)
     result = await run_cycle(get_settings())
     if result["status"] == "skipped":
         raise HTTPException(
@@ -234,6 +248,7 @@ async def sync_now() -> dict:
 
 @app.get("/api/orders")
 def orders(
+    request: Request,
     q: str | None = Query(default=None, max_length=100),
     shop_id: Annotated[list[str] | None, Query()] = None,
     page_id: Annotated[list[str] | None, Query()] = None,
@@ -257,10 +272,13 @@ def orders(
     ),
 ) -> dict:
     with SessionLocal() as session:
-        return search_orders(
+        user = request.state.current_user
+        allowed_shop_ids = authorized_shop_ids(session, user)
+        effective_shop_ids = scoped_shop_filter(shop_id, allowed_shop_ids)
+        result = search_orders(
             session,
             query=q,
-            shop_id=shop_id,
+            shop_id=effective_shop_ids,
             page_id=page_id,
             status=status,
             business_status=business_status,
@@ -279,16 +297,22 @@ def orders(
             include_summary=include_summary,
             sort_by=sort_by,
         )
+        if not can_view_revenue(user) and result["summary"] is not None:
+            result["summary"].pop("total_revenue", None)
+        return result
 
 
 @app.get("/api/order-filters")
-def filters() -> dict:
+def filters(request: Request) -> dict:
+    with SessionLocal() as session:
+        shop_ids = authorized_shop_ids(session, request.state.current_user)
     time_bucket = int(monotonic() // ORDER_FILTER_CACHE_SECONDS)
-    return _cached_order_filters(time_bucket)
+    return _cached_order_filters(time_bucket, shop_ids)
 
 
 @app.get("/api/orders/summary")
 def order_summary(
+    request: Request,
     q: str | None = Query(default=None, max_length=100),
     shop_id: Annotated[list[str] | None, Query()] = None,
     page_id: Annotated[list[str] | None, Query()] = None,
@@ -306,10 +330,13 @@ def order_summary(
     product: Annotated[str | None, Query(max_length=200)] = None,
 ) -> dict:
     with SessionLocal() as session:
-        return summarize_orders(
+        user = request.state.current_user
+        allowed_shop_ids = authorized_shop_ids(session, user)
+        effective_shop_ids = scoped_shop_filter(shop_id, allowed_shop_ids)
+        result = summarize_orders(
             session,
             query=q,
-            shop_id=shop_id,
+            shop_id=effective_shop_ids,
             page_id=page_id,
             status=status,
             business_status=business_status,
@@ -324,10 +351,14 @@ def order_summary(
             returned=returned,
             product=product,
         )
+        if not can_view_revenue(user):
+            result.pop("total_revenue", None)
+        return result
 
 
 @app.get("/api/orders/export")
 def export_orders(
+    request: Request,
     q: str | None = Query(default=None, max_length=100),
     shop_id: Annotated[list[str] | None, Query()] = None,
     page_id: Annotated[list[str] | None, Query()] = None,
@@ -345,11 +376,13 @@ def export_orders(
     product: Annotated[str | None, Query(max_length=200)] = None,
 ) -> FileResponse:
     with SessionLocal() as session:
+        allowed_shop_ids = authorized_shop_ids(session, request.state.current_user)
+        effective_shop_ids = scoped_shop_filter(shop_id, allowed_shop_ids)
         try:
             output_path, _ = export_orders_xlsx(
                 session,
                 query=q,
-                shop_id=shop_id,
+                shop_id=effective_shop_ids,
                 page_id=page_id,
                 status=status,
                 business_status=business_status,
@@ -386,12 +419,21 @@ def export_orders(
 
 @app.get("/api/orders/{order_id}")
 def order_detail(
+    request: Request,
     order_id: str,
     shop_id: str | None = Query(default=None, max_length=64),
 ) -> dict:
     with SessionLocal() as session:
+        allowed_shop_ids = authorized_shop_ids(session, request.state.current_user)
         try:
-            return get_order_detail(session, order_id=order_id, shop_id=shop_id)
+            return get_order_detail(
+                session,
+                order_id=order_id,
+                shop_id=shop_id,
+                allowed_shop_ids=(
+                    list(allowed_shop_ids) if allowed_shop_ids is not None else None
+                ),
+            )
         except OrderNotFoundError as exc:
             raise HTTPException(status_code=404, detail="Order not found") from exc
         except AmbiguousOrderError as exc:

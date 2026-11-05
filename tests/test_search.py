@@ -1,7 +1,7 @@
 from inspect import signature
 from pathlib import Path
 
-from app.search import escape_like, mask_phone, search_orders
+from app.search import escape_like, filtered_orders_statement, mask_phone, search_orders
 
 
 def test_mask_phone_preserves_only_last_four_characters() -> None:
@@ -19,6 +19,12 @@ def test_escape_like_prevents_wildcard_input() -> None:
 
 def test_search_supports_shop_filter() -> None:
     assert "shop_id" in signature(search_orders).parameters
+
+
+def test_empty_shop_scope_does_not_mean_unrestricted_access() -> None:
+    statement = filtered_orders_statement(shop_id=[])
+
+    assert statement.compile().params
 
 
 def test_search_can_defer_filtered_summary() -> None:

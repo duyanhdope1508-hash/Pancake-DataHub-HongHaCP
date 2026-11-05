@@ -69,6 +69,8 @@ def filtered_orders_statement(
     else:
         statement = select(CoreOrder)
 
+    shop_ids = _filter_values(shop_id)
+    has_shop_constraint = shop_id is not None
     clean_query = query.strip() if query else ""
     if clean_query:
         escaped_query = escape_like(clean_query)
@@ -78,8 +80,10 @@ def filtered_orders_statement(
             select(1)
             .select_from(exact_order)
             .where(exact_order.customer_name_search == normalized_name)
-            .exists()
         )
+        if has_shop_constraint:
+            exact_name_exists = exact_name_exists.where(exact_order.shop_id.in_(shop_ids))
+        exact_name_exists = exact_name_exists.exists()
         statement = statement.where(
             or_(
                 CoreOrder.customer_name_search == normalized_name,
@@ -92,8 +96,7 @@ def filtered_orders_statement(
             )
         )
 
-    shop_ids = _filter_values(shop_id)
-    if shop_ids:
+    if has_shop_constraint:
         statement = statement.where(CoreOrder.shop_id.in_(shop_ids))
     page_ids = _filter_values(page_id)
     if page_ids:

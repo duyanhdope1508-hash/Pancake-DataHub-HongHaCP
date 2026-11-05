@@ -19,22 +19,33 @@ def _isoformat(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
-def database_status() -> dict[str, Any]:
+def _scoped_count(session: Any, model: Any, shop_ids: tuple[str, ...] | None) -> int:
+    statement = select(func.count()).select_from(model)
+    if shop_ids is not None:
+        statement = statement.where(model.shop_id.in_(shop_ids))
+    return session.scalar(statement) or 0
+
+
+def database_status(shop_ids: tuple[str, ...] | None = None) -> dict[str, Any]:
     with SessionLocal() as session:
-        shop_count = session.scalar(select(func.count()).select_from(Shop)) or 0
-        order_count = session.scalar(select(func.count()).select_from(RawOrder)) or 0
-        core_customer_count = (
-            session.scalar(select(func.count()).select_from(CoreCustomer)) or 0
-        )
-        core_order_count = session.scalar(select(func.count()).select_from(CoreOrder)) or 0
-        core_item_count = (
-            session.scalar(select(func.count()).select_from(CoreOrderItem)) or 0
-        )
+        shop_statement = select(func.count()).select_from(Shop)
+        if shop_ids is not None:
+            shop_statement = shop_statement.where(Shop.id.in_(shop_ids))
+        shop_count = session.scalar(shop_statement) or 0
+        order_count = _scoped_count(session, RawOrder, shop_ids)
+        core_customer_count = _scoped_count(session, CoreCustomer, shop_ids)
+        core_order_count = _scoped_count(session, CoreOrder, shop_ids)
+        core_item_count = _scoped_count(session, CoreOrderItem, shop_ids)
         page_customer_count = (
             session.scalar(select(func.count()).select_from(PancakePageCustomer)) or 0
+            if shop_ids is None
+            else 0
         )
+        latest_statement = select(SyncRun)
+        if shop_ids is not None:
+            latest_statement = latest_statement.where(SyncRun.shop_id.in_(shop_ids))
         latest_run = session.scalar(
-            select(SyncRun).order_by(SyncRun.started_at.desc()).limit(1)
+            latest_statement.order_by(SyncRun.started_at.desc()).limit(1)
         )
 
         latest: dict[str, Any] | None = None

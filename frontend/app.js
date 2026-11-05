@@ -46,6 +46,7 @@ const elements = {
   errorBanner: document.querySelector("#errorBanner"),
   resultCount: document.querySelector("#resultCount"),
   filteredOrders: document.querySelector("#filteredOrders"),
+  revenueSummaryCard: document.querySelector("#revenueSummaryCard"),
   filteredRevenue: document.querySelector("#filteredRevenue"),
   filteredDelivered: document.querySelector("#filteredDelivered"),
   filteredFailed: document.querySelector("#filteredFailed"),
@@ -291,6 +292,8 @@ function showApplication(user) {
   state.currentUser = user;
   elements.currentUserName.textContent = text(user.display_name, user.username);
   elements.currentUserRole.textContent = user.role === "admin" ? "Quản trị viên" : "Nhân viên";
+  elements.syncNow.hidden = !user.can_sync;
+  elements.revenueSummaryCard.hidden = !user.can_view_revenue;
   elements.loginShell.hidden = true;
   elements.appShell.hidden = false;
 }
@@ -517,7 +520,9 @@ function renderOrders(data) {
 
 function renderOrderSummary(summary) {
   elements.filteredOrders.textContent = integerFormatter.format(summary.total_orders);
-  elements.filteredRevenue.textContent = formatMoney(summary.total_revenue);
+  if (state.currentUser?.can_view_revenue) {
+    elements.filteredRevenue.textContent = formatMoney(summary.total_revenue);
+  }
   elements.filteredDelivered.textContent = integerFormatter.format(summary.delivered_orders);
   elements.filteredFailed.textContent = integerFormatter.format(
     summary.returned_orders + summary.canceled_orders,

@@ -91,6 +91,7 @@ def get_order_detail(
     *,
     order_id: str,
     shop_id: str | None = None,
+    allowed_shop_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     statement = (
         select(CoreOrder, CoreCustomer)
@@ -105,6 +106,8 @@ def get_order_detail(
     )
     if shop_id:
         statement = statement.where(CoreOrder.shop_id == shop_id)
+    if allowed_shop_ids is not None:
+        statement = statement.where(CoreOrder.shop_id.in_(allowed_shop_ids))
 
     rows = session.execute(statement).all()
     if not rows:

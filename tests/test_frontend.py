@@ -18,6 +18,9 @@ def test_frontend_requires_login_before_loading_data() -> None:
     assert "/api/auth/me" in javascript
     assert "/api/auth/login" in javascript
     assert "/api/auth/logout" in javascript
+    assert 'id="revenueSummaryCard"' in html
+    assert "user.can_sync" in javascript
+    assert "user.can_view_revenue" in javascript
 
 
 def test_frontend_uses_safe_dom_rendering() -> None:
