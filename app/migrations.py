@@ -381,6 +381,39 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261105_013_add_customer_group_sort_key",
+        (
+            (
+                "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS "
+                "customer_group_key TEXT"
+            ),
+            """
+            UPDATE core_orders
+            SET customer_group_key = COALESCE(
+                NULLIF(customer_name_search, ''),
+                source_customer_id,
+                source_order_id
+            )
+            WHERE customer_group_key IS NULL
+            """,
+            """
+            UPDATE core_orders AS orders
+            SET customer_group_key = customers.normalized_phone
+            FROM core_customers AS customers
+            WHERE customers.shop_id = orders.shop_id
+              AND customers.source_customer_id = orders.source_customer_id
+              AND customers.normalized_phone IS NOT NULL
+              AND customers.normalized_phone <> ''
+            """,
+            "ALTER TABLE core_orders ALTER COLUMN customer_group_key SET DEFAULT ''",
+            "ALTER TABLE core_orders ALTER COLUMN customer_group_key SET NOT NULL",
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_customer_group_updated "
+                "ON core_orders (customer_group_key, source_updated_at DESC NULLS LAST)"
+            ),
+        ),
+    ),
 )
 
 

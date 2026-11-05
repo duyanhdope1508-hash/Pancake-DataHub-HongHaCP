@@ -10,6 +10,7 @@ const elements = {
   shopFilter: document.querySelector("#shopFilter"),
   pageFilter: document.querySelector("#pageFilter"),
   statusFilter: document.querySelector("#statusFilter"),
+  sortFilter: document.querySelector("#sortFilter"),
   toggleAdvanced: document.querySelector("#toggleAdvanced"),
   resetFilters: document.querySelector("#resetFilters"),
   exportExcel: document.querySelector("#exportExcel"),
@@ -70,6 +71,7 @@ const filterElements = {
   hasTracking: elements.trackingFilter,
   sentToCarrier: elements.sentFilter,
   returned: elements.returnedFilter,
+  sortBy: elements.sortFilter,
 };
 
 const moneyFormatter = new Intl.NumberFormat("vi-VN", {
@@ -357,8 +359,9 @@ async function syncNow() {
   }
 }
 
-function orderRow(order) {
+function orderRow(order, sameCustomer = false) {
   const row = document.createElement("tr");
+  if (sameCustomer) row.classList.add("customer-group-continuation");
 
   const orderCell = document.createElement("td");
   orderCell.append(
@@ -377,6 +380,9 @@ function orderRow(order) {
     createElement("strong", "", order.customer_name),
     createElement("span", "secondary-text", order.customer_phone_masked),
   );
+  if (sameCustomer) {
+    customerCell.append(createElement("span", "customer-group-note", "Trùng tên / SĐT"));
+  }
 
   const pageCell = document.createElement("td");
   pageCell.append(
@@ -417,7 +423,15 @@ function orderRow(order) {
 }
 
 function renderOrders(data) {
-  elements.ordersBody.replaceChildren(...data.items.map(orderRow));
+  let previousCustomerGroup = null;
+  const rows = data.items.map((order) => {
+    const sameCustomer =
+      elements.sortFilter.value === "customer" &&
+      previousCustomerGroup === order.customer_group_token;
+    previousCustomerGroup = order.customer_group_token;
+    return orderRow(order, sameCustomer);
+  });
+  elements.ordersBody.replaceChildren(...rows);
   elements.emptyState.hidden = data.items.length !== 0;
 
   const pagination = data.pagination;
@@ -471,6 +485,9 @@ function buildFilterParams(includePagination = true) {
   if (elements.pageFilter.value) params.set("page_id", elements.pageFilter.value);
   if (elements.statusFilter.value) {
     params.set("business_status", elements.statusFilter.value);
+  }
+  if (includePagination && elements.sortFilter.value) {
+    params.set("sort_by", elements.sortFilter.value);
   }
   if (elements.productFilter.value.trim()) params.set("product", elements.productFilter.value.trim());
   if (elements.carrierFilter.value) params.set("carrier_name", elements.carrierFilter.value);
@@ -664,6 +681,11 @@ elements.pageFilter.addEventListener("change", () => {
 });
 
 elements.statusFilter.addEventListener("change", () => {
+  state.pageNumber = 1;
+  loadOrders();
+});
+
+elements.sortFilter.addEventListener("change", () => {
   state.pageNumber = 1;
   loadOrders();
 });

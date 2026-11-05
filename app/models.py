@@ -190,6 +190,11 @@ class CoreOrder(Base):
         Index("ix_core_orders_shop_status", "shop_id", "status"),
         Index("ix_core_orders_business_status", "business_status"),
         Index("ix_core_orders_customer_name_search", "customer_name_search"),
+        Index(
+            "ix_core_orders_customer_group_updated",
+            "customer_group_key",
+            "source_updated_at",
+        ),
         Index("ix_core_orders_shop_updated", "shop_id", "source_updated_at"),
         Index("ix_core_orders_shop_customer", "shop_id", "source_customer_id"),
         Index("ix_core_orders_shop_page", "shop_id", "source_page_id"),
@@ -244,6 +249,7 @@ class CoreOrder(Base):
     customer_name_search: Mapped[str] = mapped_column(
         Text, nullable=False, default=""
     )
+    customer_group_key: Mapped[str] = mapped_column(Text, nullable=False, default="")
     search_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     transformed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False

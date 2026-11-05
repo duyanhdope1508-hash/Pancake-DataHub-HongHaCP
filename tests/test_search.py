@@ -26,6 +26,11 @@ def test_search_can_defer_filtered_summary() -> None:
     assert parameter.default is True
 
 
+def test_search_supports_customer_group_sorting() -> None:
+    parameter = signature(search_orders).parameters["sort_by"]
+    assert parameter.default == "recent"
+
+
 def test_search_supports_fulfillment_and_range_filters() -> None:
     parameters = signature(search_orders).parameters
     expected = {

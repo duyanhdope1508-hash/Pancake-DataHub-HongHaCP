@@ -4,7 +4,7 @@ from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
 from time import monotonic
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
@@ -120,6 +120,9 @@ def orders(
     page_number: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
     include_summary: bool = Query(default=True),
+    sort_by: Literal["recent", "customer", "value_desc", "oldest"] = Query(
+        default="recent"
+    ),
 ) -> dict:
     with SessionLocal() as session:
         return search_orders(
@@ -142,6 +145,7 @@ def orders(
             page_number=page_number,
             page_size=page_size,
             include_summary=include_summary,
+            sort_by=sort_by,
         )
 
 

@@ -218,7 +218,7 @@ select {
 
 .filters {
   display: grid;
-  grid-template-columns: minmax(260px, 1fr) repeat(3, minmax(150px, 190px)) auto;
+  grid-template-columns: minmax(240px, 1fr) repeat(4, minmax(140px, 180px)) auto;
   gap: 10px;
   padding: 0 30px 24px;
 }
@@ -509,6 +509,23 @@ td {
 
 tbody tr:hover {
   background: #fbfcf9;
+}
+
+.customer-group-continuation td {
+  border-top-color: transparent;
+  background: #f6faf7;
+}
+
+.customer-group-note {
+  display: inline-flex;
+  margin-top: 6px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
 }
 
 .order-code {

@@ -25,6 +25,7 @@ def test_frontend_has_search_filters_and_dialog() -> None:
         'id="shopFilter"',
         'id="pageFilter"',
         'id="statusFilter"',
+        'id="sortFilter"',
         'id="toggleAdvanced"',
         'id="advancedFilters"',
         'id="productFilter"',

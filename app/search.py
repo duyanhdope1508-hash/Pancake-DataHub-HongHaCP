@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from hashlib import sha256
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select
@@ -179,6 +180,7 @@ def search_orders(
     page_number: int = 1,
     page_size: int = 20,
     include_summary: bool = True,
+    sort_by: str = "recent",
 ) -> dict[str, Any]:
     filter_arguments = {
         "query": query,
@@ -219,10 +221,22 @@ def search_orders(
         total = session.scalar(select(func.count()).select_from(count_source)) or 0
 
     offset = (page_number - 1) * page_size
+    if sort_by == "customer":
+        ordering = (
+            CoreOrder.customer_group_key.asc(),
+            CoreOrder.source_updated_at.desc().nullslast(),
+        )
+    elif sort_by == "oldest":
+        ordering = (CoreOrder.source_updated_at.asc().nullslast(),)
+    elif sort_by == "value_desc":
+        ordering = (
+            CoreOrder.total_price.desc().nullslast(),
+            CoreOrder.source_updated_at.desc().nullslast(),
+        )
+    else:
+        ordering = (CoreOrder.source_updated_at.desc().nullslast(),)
     rows = session.execute(
-        statement.order_by(CoreOrder.source_updated_at.desc().nullslast())
-        .offset(offset)
-        .limit(page_size)
+        statement.order_by(*ordering).offset(offset).limit(page_size)
     ).all()
     shop_names = dict(
         session.execute(
@@ -265,6 +279,9 @@ def search_orders(
                 "customer_phone_masked": (
                     mask_phone(customer.primary_phone) if customer else None
                 ),
+                "customer_group_token": sha256(
+                    order.customer_group_key.encode("utf-8")
+                ).hexdigest()[:12],
             }
         )
 

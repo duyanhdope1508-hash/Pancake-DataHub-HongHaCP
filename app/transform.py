@@ -206,6 +206,15 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
                 shipping_phone = _string(shipping.get("phone_number"))
                 customer_name = _string(customer.get("name"))
                 customer_phone = _first_string(customer.get("phone_numbers"))
+                customer_name_search = normalize_customer_name(
+                    customer_name or shipping_name
+                )
+                customer_group_key = (
+                    normalize_phone(customer_phone)
+                    or customer_name_search
+                    or customer_id
+                    or raw_order.source_order_id
+                )
                 items = payload.get("items") if isinstance(payload.get("items"), list) else []
                 product_names = [
                     _string(item["variation_info"].get("name"))
@@ -250,9 +259,8 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
                             or _string(payload.get("returned_reason"))
                         ),
                         "return_fee": parse_decimal(payload.get("return_fee")),
-                        "customer_name_search": normalize_customer_name(
-                            customer_name or shipping_name
-                        ),
+                        "customer_name_search": customer_name_search,
+                        "customer_group_key": customer_group_key,
                         "search_text": build_order_search_text(
                             raw_order.source_order_id,
                             tracking_code,
