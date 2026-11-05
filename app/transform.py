@@ -38,6 +38,14 @@ def normalize_phone(value: Any) -> str | None:
     return digits or None
 
 
+def build_order_search_text(*values: Any) -> str:
+    return " ".join(
+        str(value).strip()
+        for value in values
+        if value is not None and str(value).strip()
+    )
+
+
 def _first_string(value: Any) -> str | None:
     if not isinstance(value, list):
         return None
@@ -182,6 +190,23 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
                     parse_datetime(payload.get("time_send_partner"))
                     or parse_datetime(partner.get("picked_up_at"))
                 )
+                tracking_code = (
+                    _string(partner.get("extend_code"))
+                    or _string(partner.get("order_number_vtp"))
+                    or _string(partner.get("order_id_ghn"))
+                    or _string(partner.get("custom_partner_id"))
+                )
+                shipping_name = _string(shipping.get("full_name"))
+                shipping_phone = _string(shipping.get("phone_number"))
+                customer_name = _string(customer.get("name"))
+                customer_phone = _first_string(customer.get("phone_numbers"))
+                items = payload.get("items") if isinstance(payload.get("items"), list) else []
+                product_names = [
+                    _string(item["variation_info"].get("name"))
+                    for item in items
+                    if isinstance(item, dict)
+                    and isinstance(item.get("variation_info"), dict)
+                ]
                 order_batch.append(
                     {
                         "shop_id": raw_order.shop_id,
@@ -202,15 +227,10 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
                         "total_price": parse_decimal(payload.get("total_price")),
                         "total_quantity": parse_decimal(payload.get("total_quantity")),
                         "currency": _string(payload.get("order_currency")),
-                        "shipping_name": _string(shipping.get("full_name")),
-                        "shipping_phone": _string(shipping.get("phone_number")),
+                        "shipping_name": shipping_name,
+                        "shipping_phone": shipping_phone,
                         "shipping_address": _string(full_address),
-                        "tracking_code": (
-                            _string(partner.get("extend_code"))
-                            or _string(partner.get("order_number_vtp"))
-                            or _string(partner.get("order_id_ghn"))
-                            or _string(partner.get("custom_partner_id"))
-                        ),
+                        "tracking_code": tracking_code,
                         "tracking_link": _string(payload.get("tracking_link")),
                         "shipping_fee": parse_decimal(payload.get("shipping_fee")),
                         "carrier_name": (
@@ -224,12 +244,21 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
                             or _string(payload.get("returned_reason"))
                         ),
                         "return_fee": parse_decimal(payload.get("return_fee")),
+                        "search_text": build_order_search_text(
+                            raw_order.source_order_id,
+                            tracking_code,
+                            shipping_name,
+                            shipping_phone,
+                            full_address,
+                            customer_name,
+                            normalize_phone(customer_phone),
+                            *product_names,
+                        ),
                         "transformed_at": transformed_at,
                     }
                 )
                 orders_transformed += 1
 
-                items = payload.get("items") if isinstance(payload.get("items"), list) else []
                 for line_number, item in enumerate(items, start=1):
                     if not isinstance(item, dict):
                         continue

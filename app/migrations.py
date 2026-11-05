@@ -243,6 +243,94 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261105_009_add_trigram_search_indexes",
+        (
+            "CREATE EXTENSION IF NOT EXISTS pg_trgm",
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_order_id_trgm "
+                "ON core_orders USING gin (source_order_id gin_trgm_ops)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_tracking_code_trgm "
+                "ON core_orders USING gin (tracking_code gin_trgm_ops)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_shipping_name_trgm "
+                "ON core_orders USING gin (shipping_name gin_trgm_ops)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_shipping_phone_trgm "
+                "ON core_orders USING gin (shipping_phone gin_trgm_ops)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_shipping_address_trgm "
+                "ON core_orders USING gin (shipping_address gin_trgm_ops)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_customers_name_trgm "
+                "ON core_customers USING gin (name gin_trgm_ops)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_customers_phone_trgm "
+                "ON core_customers USING gin (normalized_phone gin_trgm_ops)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_order_items_product_name_trgm "
+                "ON core_order_items USING gin (product_name gin_trgm_ops)"
+            ),
+        ),
+    ),
+    (
+        "20261105_010_add_order_search_document",
+        (
+            "ALTER TABLE core_orders ADD COLUMN IF NOT EXISTS search_text TEXT",
+            """
+            UPDATE core_orders AS orders
+            SET search_text = CONCAT_WS(
+                ' ',
+                orders.source_order_id,
+                orders.tracking_code,
+                orders.shipping_name,
+                orders.shipping_phone,
+                orders.shipping_address,
+                (
+                    SELECT customers.name
+                    FROM core_customers AS customers
+                    WHERE customers.shop_id = orders.shop_id
+                      AND customers.source_customer_id = orders.source_customer_id
+                ),
+                (
+                    SELECT customers.normalized_phone
+                    FROM core_customers AS customers
+                    WHERE customers.shop_id = orders.shop_id
+                      AND customers.source_customer_id = orders.source_customer_id
+                ),
+                (
+                    SELECT STRING_AGG(items.product_name, ' ')
+                    FROM core_order_items AS items
+                    WHERE items.shop_id = orders.shop_id
+                      AND items.source_order_id = orders.source_order_id
+                )
+            )
+            WHERE search_text IS NULL
+            """,
+            "ALTER TABLE core_orders ALTER COLUMN search_text SET DEFAULT ''",
+            "ALTER TABLE core_orders ALTER COLUMN search_text SET NOT NULL",
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_search_text_trgm "
+                "ON core_orders USING gin (search_text gin_trgm_ops)"
+            ),
+            "DROP INDEX IF EXISTS ix_core_orders_order_id_trgm",
+            "DROP INDEX IF EXISTS ix_core_orders_tracking_code_trgm",
+            "DROP INDEX IF EXISTS ix_core_orders_shipping_name_trgm",
+            "DROP INDEX IF EXISTS ix_core_orders_shipping_phone_trgm",
+            "DROP INDEX IF EXISTS ix_core_orders_shipping_address_trgm",
+            "DROP INDEX IF EXISTS ix_core_customers_name_trgm",
+            "DROP INDEX IF EXISTS ix_core_customers_phone_trgm",
+            "DROP INDEX IF EXISTS ix_core_order_items_product_name_trgm",
+        ),
+    ),
 )
 
 

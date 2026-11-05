@@ -11,7 +11,6 @@ from app.business_status import (
     classify_business_status,
 )
 from app.models import CoreCustomer, CoreOrder, CoreOrderItem
-from app.transform import normalize_phone
 
 
 def mask_phone(value: str | None) -> str | None:
@@ -67,29 +66,9 @@ def filtered_orders_statement(
     clean_query = query.strip() if query else ""
     if clean_query:
         escaped_query = escape_like(clean_query)
-        search_conditions = [
-            CoreOrder.source_order_id.ilike(f"%{escaped_query}%", escape="\\"),
-            CoreOrder.tracking_code.ilike(f"%{escaped_query}%", escape="\\"),
-            CoreOrder.shipping_name.ilike(f"%{escaped_query}%", escape="\\"),
-            CoreOrder.shipping_phone.ilike(f"%{escaped_query}%", escape="\\"),
-            CoreOrder.shipping_address.ilike(f"%{escaped_query}%", escape="\\"),
-            CoreCustomer.name.ilike(f"%{escaped_query}%", escape="\\"),
-            select(1)
-            .where(
-                CoreOrderItem.shop_id == CoreOrder.shop_id,
-                CoreOrderItem.source_order_id == CoreOrder.source_order_id,
-                CoreOrderItem.product_name.ilike(
-                    f"%{escaped_query}%", escape="\\"
-                ),
-            )
-            .exists(),
-        ]
-        normalized_query = normalize_phone(clean_query)
-        if normalized_query:
-            search_conditions.append(
-                CoreCustomer.normalized_phone.ilike(f"%{normalized_query}%")
-            )
-        statement = statement.where(or_(*search_conditions))
+        statement = statement.where(
+            CoreOrder.search_text.ilike(f"%{escaped_query}%", escape="\\")
+        )
 
     shop_ids = _filter_values(shop_id)
     if shop_ids:

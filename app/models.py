@@ -240,6 +240,7 @@ class CoreOrder(Base):
     )
     returned_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     return_fee: Mapped[Decimal | None] = mapped_column(Numeric(18, 2), nullable=True)
+    search_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
     transformed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
     )

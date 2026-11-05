@@ -46,3 +46,17 @@ def test_search_source_exposes_filtered_summary() -> None:
     assert '"returned_orders"' in source
     assert '"canceled_orders"' in source
 
+
+def test_migrations_add_trigram_indexes_for_keyword_search() -> None:
+    source = Path("app/migrations.py").read_text(encoding="utf-8")
+    assert "CREATE EXTENSION IF NOT EXISTS pg_trgm" in source
+    for index_name in (
+        "ix_core_orders_order_id_trgm",
+        "ix_core_orders_tracking_code_trgm",
+        "ix_core_orders_shipping_address_trgm",
+        "ix_core_customers_name_trgm",
+        "ix_core_customers_phone_trgm",
+        "ix_core_order_items_product_name_trgm",
+    ):
+        assert index_name in source
+

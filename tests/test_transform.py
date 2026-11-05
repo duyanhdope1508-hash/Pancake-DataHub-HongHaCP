@@ -2,6 +2,7 @@ from decimal import Decimal
 from inspect import signature
 
 from app.transform import (
+    build_order_search_text,
     extract_page,
     normalize_phone,
     parse_datetime,
@@ -17,6 +18,12 @@ def test_normalize_phone_keeps_digits_only() -> None:
 def test_normalize_phone_handles_missing_value() -> None:
     assert normalize_phone(None) is None
     assert normalize_phone("---") is None
+
+
+def test_build_order_search_text_skips_empty_values() -> None:
+    assert build_order_search_text("DH-1", None, "", "Khách hàng", 123) == (
+        "DH-1 Khách hàng 123"
+    )
 
 
 def test_parse_datetime_accepts_utc_suffix() -> None:
