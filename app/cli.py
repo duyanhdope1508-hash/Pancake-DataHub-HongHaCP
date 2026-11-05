@@ -37,6 +37,11 @@ async def _run(command: str) -> None:
         print(json.dumps(transform_raw_orders(), ensure_ascii=False, indent=2))
         return
 
+    if command == "transform-full":
+        init_db()
+        print(json.dumps(transform_raw_orders(full=True), ensure_ascii=False, indent=2))
+        return
+
     raise ValueError(f"Unknown command: {command}")
 
 
@@ -45,7 +50,15 @@ def main() -> None:
         sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="Pancake POS ingestion utility")
     parser.add_argument(
-        "command", choices=["probe", "inspect-orders", "status", "sync", "transform"]
+        "command",
+        choices=[
+            "probe",
+            "inspect-orders",
+            "status",
+            "sync",
+            "transform",
+            "transform-full",
+        ],
     )
     args = parser.parse_args()
     asyncio.run(_run(args.command))

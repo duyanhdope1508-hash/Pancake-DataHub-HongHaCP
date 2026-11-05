@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import and_, delete, or_, select, tuple_
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -83,22 +83,36 @@ def _upsert_batch(
     )
 
 
-def transform_raw_orders() -> dict[str, int]:
+def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
     orders_transformed = 0
     customers_transformed = 0
     items_transformed = 0
+    batches_processed = 0
 
     with SessionLocal() as session:
-        session.execute(delete(CoreOrderItem))
+        if full:
+            session.execute(delete(CoreOrderItem))
         last_shop_id: str | None = None
         last_order_id: str | None = None
 
         while True:
-            statement = (
-                select(RawOrder)
-                .order_by(RawOrder.shop_id.asc(), RawOrder.source_order_id.asc())
-                .limit(TRANSFORM_BATCH_SIZE)
-            )
+            statement = select(RawOrder)
+            if not full:
+                statement = statement.outerjoin(
+                    CoreOrder,
+                    and_(
+                        CoreOrder.shop_id == RawOrder.shop_id,
+                        CoreOrder.source_order_id == RawOrder.source_order_id,
+                    ),
+                ).where(
+                    or_(
+                        CoreOrder.source_order_id.is_(None),
+                        RawOrder.ingested_at > CoreOrder.transformed_at,
+                    )
+                )
+            statement = statement.order_by(
+                RawOrder.shop_id.asc(), RawOrder.source_order_id.asc()
+            ).limit(TRANSFORM_BATCH_SIZE)
             if last_shop_id is not None and last_order_id is not None:
                 statement = statement.where(
                     or_(
@@ -116,6 +130,7 @@ def transform_raw_orders() -> dict[str, int]:
             customer_batch: dict[tuple[str, str], dict[str, Any]] = {}
             order_batch: list[dict[str, Any]] = []
             item_batch: list[dict[str, Any]] = []
+            transformed_at = datetime.now(UTC)
 
             for raw_order in raw_orders:
                 payload = raw_order.payload
@@ -136,6 +151,7 @@ def transform_raw_orders() -> dict[str, int]:
                         "normalized_phone": normalize_phone(primary_phone),
                         "primary_email": _first_string(customer.get("emails")),
                         "source_updated_at": parse_datetime(customer.get("updated_at")),
+                        "transformed_at": transformed_at,
                     }
                     customer_batch[(raw_order.shop_id, customer_id)] = customer_values
                     customers_transformed += 1
@@ -197,6 +213,7 @@ def transform_raw_orders() -> dict[str, int]:
                             or _string(payload.get("returned_reason"))
                         ),
                         "return_fee": parse_decimal(payload.get("return_fee")),
+                        "transformed_at": transformed_at,
                     }
                 )
                 orders_transformed += 1
@@ -220,6 +237,7 @@ def transform_raw_orders() -> dict[str, int]:
                             "quantity": parse_decimal(item.get("quantity")),
                             "unit_price": parse_decimal(variation_info.get("retail_price")),
                             "total_discount": parse_decimal(item.get("total_discount")),
+                            "transformed_at": transformed_at,
                         }
                     )
                     items_transformed += 1
@@ -239,16 +257,34 @@ def transform_raw_orders() -> dict[str, int]:
                 order_batch,
                 conflict_columns=[CoreOrder.shop_id, CoreOrder.source_order_id],
             )
+            if not full:
+                order_keys = [
+                    (raw_order.shop_id, raw_order.source_order_id)
+                    for raw_order in raw_orders
+                ]
+                session.execute(
+                    delete(CoreOrderItem).where(
+                        tuple_(
+                            CoreOrderItem.shop_id,
+                            CoreOrderItem.source_order_id,
+                        ).in_(order_keys)
+                    )
+                )
             if item_batch:
                 session.execute(insert(CoreOrderItem).values(item_batch))
 
             last_order = raw_orders[-1]
             last_shop_id = last_order.shop_id
             last_order_id = last_order.source_order_id
+            batches_processed += 1
+            if not full:
+                session.commit()
 
         session.commit()
 
     return {
+        "mode": "full" if full else "incremental",
+        "batches_processed": batches_processed,
         "orders_transformed": orders_transformed,
         "customers_transformed": customers_transformed,
         "items_transformed": items_transformed,

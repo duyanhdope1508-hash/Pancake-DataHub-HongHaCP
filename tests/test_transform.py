@@ -1,6 +1,13 @@
 from decimal import Decimal
+from inspect import signature
 
-from app.transform import extract_page, normalize_phone, parse_datetime, parse_decimal
+from app.transform import (
+    extract_page,
+    normalize_phone,
+    parse_datetime,
+    parse_decimal,
+    transform_raw_orders,
+)
 
 
 def test_normalize_phone_keeps_digits_only() -> None:
@@ -38,4 +45,10 @@ def test_extract_page_falls_back_to_nested_id() -> None:
         "123",
         "Main Page",
     )
+
+
+def test_transform_supports_explicit_full_rebuild() -> None:
+    parameter = signature(transform_raw_orders).parameters["full"]
+    assert parameter.default is False
+    assert parameter.kind.name == "KEYWORD_ONLY"
 
