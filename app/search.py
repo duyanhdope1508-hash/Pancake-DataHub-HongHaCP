@@ -38,8 +38,7 @@ def _has_text(column: Any) -> Any:
     return and_(column.is_not(None), column != "")
 
 
-def search_orders(
-    session: Session,
+def filtered_orders_statement(
     *,
     query: str | None = None,
     shop_id: str | list[str] | None = None,
@@ -56,9 +55,7 @@ def search_orders(
     sent_to_carrier: bool | None = None,
     returned: bool | None = None,
     product: str | None = None,
-    page_number: int = 1,
-    page_size: int = 20,
-) -> dict[str, Any]:
+) -> Any:
     statement = select(CoreOrder, CoreCustomer).outerjoin(
         CoreCustomer,
         and_(
@@ -157,6 +154,48 @@ def search_orders(
             )
             .exists()
         )
+
+    return statement
+
+
+def search_orders(
+    session: Session,
+    *,
+    query: str | None = None,
+    shop_id: str | list[str] | None = None,
+    page_id: str | list[str] | None = None,
+    status: int | list[int] | None = None,
+    business_status: str | list[str] | None = None,
+    carrier_name: str | list[str] | None = None,
+    delivery_status: str | list[str] | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    min_total: Decimal | None = None,
+    max_total: Decimal | None = None,
+    has_tracking: bool | None = None,
+    sent_to_carrier: bool | None = None,
+    returned: bool | None = None,
+    product: str | None = None,
+    page_number: int = 1,
+    page_size: int = 20,
+) -> dict[str, Any]:
+    statement = filtered_orders_statement(
+        query=query,
+        shop_id=shop_id,
+        page_id=page_id,
+        status=status,
+        business_status=business_status,
+        carrier_name=carrier_name,
+        delivery_status=delivery_status,
+        date_from=date_from,
+        date_to=date_to,
+        min_total=min_total,
+        max_total=max_total,
+        has_tracking=has_tracking,
+        sent_to_carrier=sent_to_carrier,
+        returned=returned,
+        product=product,
+    )
 
     summary_source = statement.with_only_columns(
         CoreOrder.total_price,

@@ -8,9 +8,11 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
+from starlette.background import BackgroundTask
 
 from app.db import SessionLocal, init_db
 from app.order_detail import AmbiguousOrderError, OrderNotFoundError, get_order_detail
+from app.order_export import ExportLimitExceeded, export_orders_xlsx
 from app.order_filters import order_filters
 from app.search import search_orders
 from app.status import database_status
@@ -110,6 +112,64 @@ def orders(
 def filters() -> dict:
     with SessionLocal() as session:
         return order_filters(session)
+
+
+@app.get("/api/orders/export")
+def export_orders(
+    q: str | None = Query(default=None, max_length=100),
+    shop_id: Annotated[list[str] | None, Query()] = None,
+    page_id: Annotated[list[str] | None, Query()] = None,
+    status: Annotated[list[int] | None, Query()] = None,
+    business_status: Annotated[list[str] | None, Query()] = None,
+    carrier_name: Annotated[list[str] | None, Query()] = None,
+    delivery_status: Annotated[list[str] | None, Query()] = None,
+    date_from: Annotated[datetime | None, Query()] = None,
+    date_to: Annotated[datetime | None, Query()] = None,
+    min_total: Annotated[Decimal | None, Query(ge=0)] = None,
+    max_total: Annotated[Decimal | None, Query(ge=0)] = None,
+    has_tracking: Annotated[bool | None, Query()] = None,
+    sent_to_carrier: Annotated[bool | None, Query()] = None,
+    returned: Annotated[bool | None, Query()] = None,
+    product: Annotated[str | None, Query(max_length=200)] = None,
+) -> FileResponse:
+    with SessionLocal() as session:
+        try:
+            output_path, _ = export_orders_xlsx(
+                session,
+                query=q,
+                shop_id=shop_id,
+                page_id=page_id,
+                status=status,
+                business_status=business_status,
+                carrier_name=carrier_name,
+                delivery_status=delivery_status,
+                date_from=date_from,
+                date_to=date_to,
+                min_total=min_total,
+                max_total=max_total,
+                has_tracking=has_tracking,
+                sent_to_carrier=sent_to_carrier,
+                returned=returned,
+                product=product,
+            )
+        except ExportLimitExceeded as exc:
+            raise HTTPException(
+                status_code=422,
+                detail=(
+                    f"Có {exc.total_orders:,} đơn. Hãy thu hẹp bộ lọc còn tối đa "
+                    f"{exc.max_orders:,} đơn trước khi xuất Excel."
+                ),
+            ) from exc
+
+    filename = f"pancake-orders-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
+    return FileResponse(
+        output_path,
+        filename=filename,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        ),
+        background=BackgroundTask(output_path.unlink, missing_ok=True),
+    )
 
 
 @app.get("/api/orders/{order_id}")

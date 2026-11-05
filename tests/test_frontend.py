@@ -37,6 +37,7 @@ def test_frontend_has_search_filters_and_dialog() -> None:
         'id="sentFilter"',
         'id="returnedFilter"',
         'id="resetFilters"',
+        'id="exportExcel"',
         'id="filteredOrders"',
         'id="filteredRevenue"',
         'id="filteredDelivered"',

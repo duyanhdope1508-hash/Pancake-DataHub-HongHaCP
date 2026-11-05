@@ -211,7 +211,8 @@ select {
 }
 
 .advanced-toggle,
-.reset-button {
+.reset-button,
+.export-button {
   padding: 0;
   border: 0;
   background: transparent;
@@ -233,6 +234,22 @@ select {
 
 .reset-button {
   color: var(--muted);
+}
+
+.export-button {
+  margin-left: auto;
+  padding: 8px 13px;
+  border: 1px solid var(--accent);
+  border-radius: 9px;
+  color: var(--accent);
+}
+
+.export-button:hover {
+  background: var(--accent-soft);
+}
+
+.export-button:disabled {
+  opacity: 0.55;
 }
 
 .advanced-filters {

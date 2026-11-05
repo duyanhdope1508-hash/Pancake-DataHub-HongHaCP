@@ -12,6 +12,7 @@ const elements = {
   statusFilter: document.querySelector("#statusFilter"),
   toggleAdvanced: document.querySelector("#toggleAdvanced"),
   resetFilters: document.querySelector("#resetFilters"),
+  exportExcel: document.querySelector("#exportExcel"),
   advancedFilters: document.querySelector("#advancedFilters"),
   productFilter: document.querySelector("#productFilter"),
   carrierFilter: document.querySelector("#carrierFilter"),
@@ -227,13 +228,34 @@ function renderOrders(data) {
   elements.nextPage.disabled = state.pageNumber >= state.totalPages;
 }
 
-async function loadOrders() {
-  clearError();
-  elements.resultCount.textContent = "Đang tải…";
-  const params = new URLSearchParams({
-    page_number: String(state.pageNumber),
-    page_size: String(state.pageSize),
-  });
+function validateFilters() {
+  if (
+    elements.dateFromFilter.value &&
+    elements.dateToFilter.value &&
+    elements.dateFromFilter.value > elements.dateToFilter.value
+  ) {
+    showError("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
+    elements.resultCount.textContent = "Bộ lọc chưa hợp lệ";
+    return false;
+  }
+  if (
+    elements.minTotalFilter.value &&
+    elements.maxTotalFilter.value &&
+    Number(elements.minTotalFilter.value) > Number(elements.maxTotalFilter.value)
+  ) {
+    showError("Giá trị tối thiểu không được lớn hơn giá trị tối đa.");
+    elements.resultCount.textContent = "Bộ lọc chưa hợp lệ";
+    return false;
+  }
+  return true;
+}
+
+function buildFilterParams(includePagination = true) {
+  const params = new URLSearchParams();
+  if (includePagination) {
+    params.set("page_number", String(state.pageNumber));
+    params.set("page_size", String(state.pageSize));
+  }
   const query = elements.searchInput.value.trim();
   if (query) params.set("q", query);
   if (elements.shopFilter.value) params.set("shop_id", elements.shopFilter.value);
@@ -257,25 +279,14 @@ async function loadOrders() {
   if (elements.trackingFilter.value) params.set("has_tracking", elements.trackingFilter.value);
   if (elements.sentFilter.value) params.set("sent_to_carrier", elements.sentFilter.value);
   if (elements.returnedFilter.value) params.set("returned", elements.returnedFilter.value);
+  return params;
+}
 
-  if (
-    elements.dateFromFilter.value &&
-    elements.dateToFilter.value &&
-    elements.dateFromFilter.value > elements.dateToFilter.value
-  ) {
-    showError("Ngày bắt đầu phải trước hoặc bằng ngày kết thúc.");
-    elements.resultCount.textContent = "Bộ lọc chưa hợp lệ";
-    return;
-  }
-  if (
-    elements.minTotalFilter.value &&
-    elements.maxTotalFilter.value &&
-    Number(elements.minTotalFilter.value) > Number(elements.maxTotalFilter.value)
-  ) {
-    showError("Giá trị tối thiểu không được lớn hơn giá trị tối đa.");
-    elements.resultCount.textContent = "Bộ lọc chưa hợp lệ";
-    return;
-  }
+async function loadOrders() {
+  clearError();
+  elements.resultCount.textContent = "Đang tải…";
+  if (!validateFilters()) return;
+  const params = buildFilterParams();
 
   try {
     renderOrders(await fetchJson(`/api/orders?${params.toString()}`));
@@ -283,6 +294,38 @@ async function loadOrders() {
     elements.ordersBody.replaceChildren();
     showError(`Không thể tải đơn hàng. ${error.message}`);
     elements.resultCount.textContent = "Không tải được dữ liệu";
+  }
+}
+
+async function exportOrders() {
+  clearError();
+  if (!validateFilters()) return;
+  elements.exportExcel.disabled = true;
+  elements.exportExcel.textContent = "Đang tạo file…";
+  try {
+    const params = buildFilterParams(false);
+    const response = await fetch(`/api/orders/export?${params.toString()}`);
+    if (!response.ok) {
+      const payload = await response.json().catch(() => ({}));
+      throw new Error(payload.detail || `Yêu cầu thất bại (${response.status})`);
+    }
+    const blob = await response.blob();
+    const disposition = response.headers.get("Content-Disposition") || "";
+    const filenameMatch = disposition.match(/filename="?([^";]+)"?/i);
+    const filename = filenameMatch ? filenameMatch[1] : "pancake-orders.xlsx";
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.append(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(downloadUrl);
+  } catch (error) {
+    showError(`Không thể xuất Excel. ${error.message}`);
+  } finally {
+    elements.exportExcel.disabled = false;
+    elements.exportExcel.textContent = "Xuất Excel";
   }
 }
 
@@ -413,6 +456,8 @@ elements.resetFilters.addEventListener("click", () => {
   state.pageNumber = 1;
   loadOrders();
 });
+
+elements.exportExcel.addEventListener("click", exportOrders);
 
 elements.previousPage.addEventListener("click", () => {
   if (state.pageNumber > 1) {
