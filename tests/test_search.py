@@ -19,3 +19,20 @@ def test_escape_like_prevents_wildcard_input() -> None:
 def test_search_supports_shop_filter() -> None:
     assert "shop_id" in signature(search_orders).parameters
 
+
+def test_search_supports_fulfillment_and_range_filters() -> None:
+    parameters = signature(search_orders).parameters
+    expected = {
+        "carrier_name",
+        "delivery_status",
+        "date_from",
+        "date_to",
+        "min_total",
+        "max_total",
+        "has_tracking",
+        "sent_to_carrier",
+        "returned",
+        "product",
+    }
+    assert expected <= parameters.keys()
+

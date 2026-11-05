@@ -1,9 +1,11 @@
+from datetime import datetime
+from decimal import Decimal
 from typing import Any
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.models import CoreCustomer, CoreOrder
+from app.models import CoreCustomer, CoreOrder, CoreOrderItem
 from app.transform import normalize_phone
 
 
@@ -19,13 +21,35 @@ def escape_like(value: str) -> str:
     return value.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
+def _filter_values[FilterValue](
+    value: FilterValue | list[FilterValue] | None,
+) -> list[FilterValue]:
+    if value is None:
+        return []
+    return value if isinstance(value, list) else [value]
+
+
+def _has_text(column: Any) -> Any:
+    return and_(column.is_not(None), column != "")
+
+
 def search_orders(
     session: Session,
     *,
     query: str | None = None,
-    shop_id: str | None = None,
-    page_id: str | None = None,
-    status: int | None = None,
+    shop_id: str | list[str] | None = None,
+    page_id: str | list[str] | None = None,
+    status: int | list[int] | None = None,
+    carrier_name: str | list[str] | None = None,
+    delivery_status: str | list[str] | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
+    min_total: Decimal | None = None,
+    max_total: Decimal | None = None,
+    has_tracking: bool | None = None,
+    sent_to_carrier: bool | None = None,
+    returned: bool | None = None,
+    product: str | None = None,
     page_number: int = 1,
     page_size: int = 20,
 ) -> dict[str, Any]:
@@ -43,7 +67,19 @@ def search_orders(
         search_conditions = [
             CoreOrder.source_order_id.ilike(f"%{escaped_query}%", escape="\\"),
             CoreOrder.tracking_code.ilike(f"%{escaped_query}%", escape="\\"),
+            CoreOrder.shipping_name.ilike(f"%{escaped_query}%", escape="\\"),
+            CoreOrder.shipping_phone.ilike(f"%{escaped_query}%", escape="\\"),
+            CoreOrder.shipping_address.ilike(f"%{escaped_query}%", escape="\\"),
             CoreCustomer.name.ilike(f"%{escaped_query}%", escape="\\"),
+            select(1)
+            .where(
+                CoreOrderItem.shop_id == CoreOrder.shop_id,
+                CoreOrderItem.source_order_id == CoreOrder.source_order_id,
+                CoreOrderItem.product_name.ilike(
+                    f"%{escaped_query}%", escape="\\"
+                ),
+            )
+            .exists(),
         ]
         normalized_query = normalize_phone(clean_query)
         if normalized_query:
@@ -52,12 +88,64 @@ def search_orders(
             )
         statement = statement.where(or_(*search_conditions))
 
-    if shop_id:
-        statement = statement.where(CoreOrder.shop_id == shop_id)
-    if page_id:
-        statement = statement.where(CoreOrder.source_page_id == page_id)
-    if status is not None:
-        statement = statement.where(CoreOrder.status == status)
+    shop_ids = _filter_values(shop_id)
+    if shop_ids:
+        statement = statement.where(CoreOrder.shop_id.in_(shop_ids))
+    page_ids = _filter_values(page_id)
+    if page_ids:
+        statement = statement.where(CoreOrder.source_page_id.in_(page_ids))
+    statuses = _filter_values(status)
+    if statuses:
+        statement = statement.where(CoreOrder.status.in_(statuses))
+    carriers = _filter_values(carrier_name)
+    if carriers:
+        statement = statement.where(CoreOrder.carrier_name.in_(carriers))
+    delivery_statuses = _filter_values(delivery_status)
+    if delivery_statuses:
+        statement = statement.where(CoreOrder.delivery_status.in_(delivery_statuses))
+    if date_from is not None:
+        statement = statement.where(CoreOrder.inserted_at >= date_from)
+    if date_to is not None:
+        statement = statement.where(CoreOrder.inserted_at <= date_to)
+    if min_total is not None:
+        statement = statement.where(CoreOrder.total_price >= min_total)
+    if max_total is not None:
+        statement = statement.where(CoreOrder.total_price <= max_total)
+    if has_tracking is not None:
+        tracking_condition = _has_text(CoreOrder.tracking_code)
+        statement = statement.where(
+            tracking_condition if has_tracking else ~tracking_condition
+        )
+    if sent_to_carrier is not None:
+        sent_condition = CoreOrder.sent_to_carrier_at.is_not(None)
+        statement = statement.where(
+            sent_condition if sent_to_carrier else ~sent_condition
+        )
+    if returned is not None:
+        returned_condition = or_(
+            _has_text(CoreOrder.returned_reason),
+            func.coalesce(CoreOrder.return_fee, 0) > 0,
+            func.coalesce(CoreOrder.status_name, "").ilike("%hoàn%"),
+            func.coalesce(CoreOrder.delivery_status, "").ilike("%hoàn%"),
+        )
+        statement = statement.where(
+            returned_condition if returned else ~returned_condition
+        )
+
+    clean_product = product.strip() if product else ""
+    if clean_product:
+        escaped_product = escape_like(clean_product)
+        statement = statement.where(
+            select(1)
+            .where(
+                CoreOrderItem.shop_id == CoreOrder.shop_id,
+                CoreOrderItem.source_order_id == CoreOrder.source_order_id,
+                CoreOrderItem.product_name.ilike(
+                    f"%{escaped_product}%", escape="\\"
+                ),
+            )
+            .exists()
+        )
 
     total = session.scalar(
         select(func.count()).select_from(statement.order_by(None).subquery())
@@ -80,7 +168,10 @@ def search_orders(
                 "status": order.status,
                 "status_name": order.status_name,
                 "tracking_code": order.tracking_code,
+                "carrier_name": order.carrier_name,
                 "delivery_status": order.delivery_status,
+                "sent_to_carrier_at": order.sent_to_carrier_at,
+                "returned_reason": order.returned_reason,
                 "total_price": order.total_price,
                 "total_quantity": order.total_quantity,
                 "currency": order.currency,

@@ -42,6 +42,27 @@ def order_filters(session: Session) -> dict[str, Any]:
         .order_by(CoreOrder.status.asc())
     ).all()
 
+    carrier_rows = session.execute(
+        select(CoreOrder.carrier_name, func.count().label("order_count"))
+        .where(CoreOrder.carrier_name.is_not(None), CoreOrder.carrier_name != "")
+        .group_by(CoreOrder.carrier_name)
+        .order_by(CoreOrder.carrier_name.asc())
+    ).all()
+
+    delivery_status_rows = session.execute(
+        select(CoreOrder.delivery_status, func.count().label("order_count"))
+        .where(
+            CoreOrder.delivery_status.is_not(None),
+            CoreOrder.delivery_status != "",
+        )
+        .group_by(CoreOrder.delivery_status)
+        .order_by(CoreOrder.delivery_status.asc())
+    ).all()
+
+    date_range = session.execute(
+        select(func.min(CoreOrder.inserted_at), func.max(CoreOrder.inserted_at))
+    ).one()
+
     return {
         "total_orders": total_orders,
         "shops": [
@@ -68,5 +89,17 @@ def order_filters(session: Session) -> dict[str, Any]:
             }
             for status, status_name, order_count in status_rows
         ],
+        "carriers": [
+            {"carrier_name": carrier_name, "order_count": order_count}
+            for carrier_name, order_count in carrier_rows
+        ],
+        "delivery_statuses": [
+            {"delivery_status": delivery_status, "order_count": order_count}
+            for delivery_status, order_count in delivery_status_rows
+        ],
+        "date_range": {
+            "from": date_range[0],
+            "to": date_range[1],
+        },
     }
 

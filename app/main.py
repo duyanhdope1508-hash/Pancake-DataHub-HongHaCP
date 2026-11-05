@@ -1,5 +1,8 @@
 from contextlib import asynccontextmanager
+from datetime import datetime
+from decimal import Decimal
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse
@@ -63,9 +66,19 @@ def system_status() -> dict:
 @app.get("/api/orders")
 def orders(
     q: str | None = Query(default=None, max_length=100),
-    shop_id: str | None = Query(default=None, max_length=64),
-    page_id: str | None = Query(default=None, max_length=128),
-    status: int | None = Query(default=None),
+    shop_id: Annotated[list[str] | None, Query()] = None,
+    page_id: Annotated[list[str] | None, Query()] = None,
+    status: Annotated[list[int] | None, Query()] = None,
+    carrier_name: Annotated[list[str] | None, Query()] = None,
+    delivery_status: Annotated[list[str] | None, Query()] = None,
+    date_from: Annotated[datetime | None, Query()] = None,
+    date_to: Annotated[datetime | None, Query()] = None,
+    min_total: Annotated[Decimal | None, Query(ge=0)] = None,
+    max_total: Annotated[Decimal | None, Query(ge=0)] = None,
+    has_tracking: Annotated[bool | None, Query()] = None,
+    sent_to_carrier: Annotated[bool | None, Query()] = None,
+    returned: Annotated[bool | None, Query()] = None,
+    product: Annotated[str | None, Query(max_length=200)] = None,
     page_number: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
 ) -> dict:
@@ -76,6 +89,16 @@ def orders(
             shop_id=shop_id,
             page_id=page_id,
             status=status,
+            carrier_name=carrier_name,
+            delivery_status=delivery_status,
+            date_from=date_from,
+            date_to=date_to,
+            min_total=min_total,
+            max_total=max_total,
+            has_tracking=has_tracking,
+            sent_to_carrier=sent_to_carrier,
+            returned=returned,
+            product=product,
             page_number=page_number,
             page_size=page_size,
         )

@@ -176,6 +176,27 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261105_007_add_order_filter_indexes",
+        (
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_carrier_name "
+                "ON core_orders (carrier_name)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_delivery_status_only "
+                "ON core_orders (delivery_status)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_inserted_at "
+                "ON core_orders (inserted_at)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_total_price "
+                "ON core_orders (total_price)"
+            ),
+        ),
+    ),
 )
 
 

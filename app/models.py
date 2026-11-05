@@ -191,6 +191,10 @@ class CoreOrder(Base):
         Index("ix_core_orders_shop_updated", "shop_id", "source_updated_at"),
         Index("ix_core_orders_shop_customer", "shop_id", "source_customer_id"),
         Index("ix_core_orders_shop_page", "shop_id", "source_page_id"),
+        Index("ix_core_orders_carrier_name", "carrier_name"),
+        Index("ix_core_orders_delivery_status_only", "delivery_status"),
+        Index("ix_core_orders_inserted_at", "inserted_at"),
+        Index("ix_core_orders_total_price", "total_price"),
     )
 
     shop_id: Mapped[str] = mapped_column(
