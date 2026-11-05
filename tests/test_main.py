@@ -9,6 +9,7 @@ def test_system_status_route_is_registered() -> None:
     paths = {route.path for route in app.routes}
     assert "/api/system-status" in paths
     assert "/api/sync" in paths
+    assert "/api/orders/summary" in paths
     assert "/api/orders/export" in paths
 
 

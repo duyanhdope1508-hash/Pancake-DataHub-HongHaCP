@@ -331,6 +331,15 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             "DROP INDEX IF EXISTS ix_core_order_items_product_name_trgm",
         ),
     ),
+    (
+        "20261105_011_index_recent_orders",
+        (
+            (
+                "CREATE INDEX IF NOT EXISTS ix_core_orders_source_updated_desc "
+                "ON core_orders (source_updated_at DESC NULLS LAST)"
+            ),
+        ),
+    ),
 )
 
 

@@ -406,18 +406,20 @@ function renderOrders(data) {
   elements.emptyState.hidden = data.items.length !== 0;
 
   const pagination = data.pagination;
-  const summary = data.summary;
   state.totalPages = Math.max(pagination.total_pages, 1);
   elements.resultCount.textContent = `${integerFormatter.format(pagination.total_items)} kết quả`;
+  elements.pageIndicator.textContent = `Trang ${state.pageNumber} / ${state.totalPages}`;
+  elements.previousPage.disabled = state.pageNumber <= 1;
+  elements.nextPage.disabled = state.pageNumber >= state.totalPages;
+}
+
+function renderOrderSummary(summary) {
   elements.filteredOrders.textContent = integerFormatter.format(summary.total_orders);
   elements.filteredRevenue.textContent = formatMoney(summary.total_revenue);
   elements.filteredDelivered.textContent = integerFormatter.format(summary.delivered_orders);
   elements.filteredFailed.textContent = integerFormatter.format(
     summary.returned_orders + summary.canceled_orders,
   );
-  elements.pageIndicator.textContent = `Trang ${state.pageNumber} / ${state.totalPages}`;
-  elements.previousPage.disabled = state.pageNumber <= 1;
-  elements.nextPage.disabled = state.pageNumber >= state.totalPages;
 }
 
 function validateFilters() {
@@ -479,9 +481,25 @@ async function loadOrders() {
   elements.resultCount.textContent = "Đang tải…";
   if (!validateFilters()) return;
   const params = buildFilterParams();
+  params.set("include_summary", "false");
+  const summaryParams = buildFilterParams(false);
+  elements.filteredOrders.textContent = "Đang tính…";
+  elements.filteredRevenue.textContent = "Đang tính…";
+  elements.filteredDelivered.textContent = "Đang tính…";
+  elements.filteredFailed.textContent = "Đang tính…";
+  const summaryPromise = fetchJson(`/api/orders/summary?${summaryParams.toString()}`)
+    .then((summary) => {
+      renderOrderSummary(summary);
+      return null;
+    })
+    .catch((error) => error);
 
   try {
     renderOrders(await fetchJson(`/api/orders?${params.toString()}`));
+    const summaryError = await summaryPromise;
+    if (summaryError) {
+      showError(`Danh sách đã tải nhưng chưa tính được thống kê. ${summaryError.message}`);
+    }
   } catch (error) {
     elements.ordersBody.replaceChildren();
     showError(`Không thể tải đơn hàng. ${error.message}`);
@@ -680,9 +698,8 @@ elements.orderDialog.addEventListener("click", (event) => {
 
 async function initialize() {
   try {
-    await Promise.all([loadFilters(), loadSystemStatus()]);
     renderSavedFilters();
-    await loadOrders();
+    await Promise.all([loadFilters(), loadSystemStatus(), loadOrders()]);
   } catch (error) {
     showError(`Không thể khởi tạo cổng tra cứu. ${error.message}`);
   }

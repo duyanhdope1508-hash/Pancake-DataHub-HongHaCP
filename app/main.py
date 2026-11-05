@@ -1,7 +1,9 @@
 from contextlib import asynccontextmanager
 from datetime import datetime
 from decimal import Decimal
+from functools import lru_cache
 from pathlib import Path
+from time import monotonic
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -15,7 +17,7 @@ from app.db import SessionLocal, init_db
 from app.order_detail import AmbiguousOrderError, OrderNotFoundError, get_order_detail
 from app.order_export import ExportLimitExceeded, export_orders_xlsx
 from app.order_filters import order_filters
-from app.search import search_orders
+from app.search import search_orders, summarize_orders
 from app.status import database_status
 from app.worker import run_cycle
 
@@ -36,6 +38,14 @@ app = FastAPI(
 
 frontend_dir = Path(__file__).resolve().parents[1] / "frontend"
 app.mount("/assets", StaticFiles(directory=frontend_dir), name="assets")
+ORDER_FILTER_CACHE_SECONDS = 300
+
+
+@lru_cache(maxsize=2)
+def _cached_order_filters(time_bucket: int) -> dict:
+    del time_bucket
+    with SessionLocal() as session:
+        return order_filters(session)
 
 
 @app.middleware("http")
@@ -78,6 +88,7 @@ async def sync_now() -> dict:
 
     sync_result = result["sync"]
     transform_result = result["transform"]
+    _cached_order_filters.cache_clear()
     return {
         "status": "completed" if sync_result["success"] else "completed_with_errors",
         "success": sync_result["success"],
@@ -108,6 +119,7 @@ def orders(
     product: Annotated[str | None, Query(max_length=200)] = None,
     page_number: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=100),
+    include_summary: bool = Query(default=True),
 ) -> dict:
     with SessionLocal() as session:
         return search_orders(
@@ -129,13 +141,53 @@ def orders(
             product=product,
             page_number=page_number,
             page_size=page_size,
+            include_summary=include_summary,
         )
 
 
 @app.get("/api/order-filters")
 def filters() -> dict:
+    time_bucket = int(monotonic() // ORDER_FILTER_CACHE_SECONDS)
+    return _cached_order_filters(time_bucket)
+
+
+@app.get("/api/orders/summary")
+def order_summary(
+    q: str | None = Query(default=None, max_length=100),
+    shop_id: Annotated[list[str] | None, Query()] = None,
+    page_id: Annotated[list[str] | None, Query()] = None,
+    status: Annotated[list[int] | None, Query()] = None,
+    business_status: Annotated[list[str] | None, Query()] = None,
+    carrier_name: Annotated[list[str] | None, Query()] = None,
+    delivery_status: Annotated[list[str] | None, Query()] = None,
+    date_from: Annotated[datetime | None, Query()] = None,
+    date_to: Annotated[datetime | None, Query()] = None,
+    min_total: Annotated[Decimal | None, Query(ge=0)] = None,
+    max_total: Annotated[Decimal | None, Query(ge=0)] = None,
+    has_tracking: Annotated[bool | None, Query()] = None,
+    sent_to_carrier: Annotated[bool | None, Query()] = None,
+    returned: Annotated[bool | None, Query()] = None,
+    product: Annotated[str | None, Query(max_length=200)] = None,
+) -> dict:
     with SessionLocal() as session:
-        return order_filters(session)
+        return summarize_orders(
+            session,
+            query=q,
+            shop_id=shop_id,
+            page_id=page_id,
+            status=status,
+            business_status=business_status,
+            carrier_name=carrier_name,
+            delivery_status=delivery_status,
+            date_from=date_from,
+            date_to=date_to,
+            min_total=min_total,
+            max_total=max_total,
+            has_tracking=has_tracking,
+            sent_to_carrier=sent_to_carrier,
+            returned=returned,
+            product=product,
+        )
 
 
 @app.get("/api/orders/export")

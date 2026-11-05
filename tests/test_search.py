@@ -21,6 +21,11 @@ def test_search_supports_shop_filter() -> None:
     assert "shop_id" in signature(search_orders).parameters
 
 
+def test_search_can_defer_filtered_summary() -> None:
+    parameter = signature(search_orders).parameters["include_summary"]
+    assert parameter.default is True
+
+
 def test_search_supports_fulfillment_and_range_filters() -> None:
     parameters = signature(search_orders).parameters
     expected = {

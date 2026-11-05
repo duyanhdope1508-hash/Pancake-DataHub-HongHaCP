@@ -54,14 +54,18 @@ def filtered_orders_statement(
     sent_to_carrier: bool | None = None,
     returned: bool | None = None,
     product: str | None = None,
+    include_customer: bool = True,
 ) -> Any:
-    statement = select(CoreOrder, CoreCustomer).outerjoin(
-        CoreCustomer,
-        and_(
-            CoreCustomer.shop_id == CoreOrder.shop_id,
-            CoreCustomer.source_customer_id == CoreOrder.source_customer_id,
-        ),
-    )
+    if include_customer:
+        statement = select(CoreOrder, CoreCustomer).outerjoin(
+            CoreCustomer,
+            and_(
+                CoreCustomer.shop_id == CoreOrder.shop_id,
+                CoreCustomer.source_customer_id == CoreOrder.source_customer_id,
+            ),
+        )
+    else:
+        statement = select(CoreOrder)
 
     clean_query = query.strip() if query else ""
     if clean_query:
@@ -157,48 +161,46 @@ def search_orders(
     product: str | None = None,
     page_number: int = 1,
     page_size: int = 20,
+    include_summary: bool = True,
 ) -> dict[str, Any]:
-    statement = filtered_orders_statement(
-        query=query,
-        shop_id=shop_id,
-        page_id=page_id,
-        status=status,
-        business_status=business_status,
-        carrier_name=carrier_name,
-        delivery_status=delivery_status,
-        date_from=date_from,
-        date_to=date_to,
-        min_total=min_total,
-        max_total=max_total,
-        has_tracking=has_tracking,
-        sent_to_carrier=sent_to_carrier,
-        returned=returned,
-        product=product,
+    filter_arguments = {
+        "query": query,
+        "shop_id": shop_id,
+        "page_id": page_id,
+        "status": status,
+        "business_status": business_status,
+        "carrier_name": carrier_name,
+        "delivery_status": delivery_status,
+        "date_from": date_from,
+        "date_to": date_to,
+        "min_total": min_total,
+        "max_total": max_total,
+        "has_tracking": has_tracking,
+        "sent_to_carrier": sent_to_carrier,
+        "returned": returned,
+        "product": product,
+    }
+    statement = filtered_orders_statement(**filter_arguments)
+    aggregate_statement = filtered_orders_statement(
+        **filter_arguments,
+        include_customer=False,
     )
 
-    summary_source = statement.with_only_columns(
-        CoreOrder.total_price,
-        business_status_expression().label("business_status"),
-        maintain_column_froms=True,
-    ).order_by(None).subquery()
-    summary = session.execute(
-        select(
-            func.count().label("total_orders"),
-            func.coalesce(func.sum(summary_source.c.total_price), 0).label(
-                "total_revenue"
-            ),
-            func.count()
-            .filter(summary_source.c.business_status == "delivered")
-            .label("delivered_orders"),
-            func.count()
-            .filter(summary_source.c.business_status == "returned")
-            .label("returned_orders"),
-            func.count()
-            .filter(summary_source.c.business_status == "canceled")
-            .label("canceled_orders"),
-        ).select_from(summary_source)
-    ).one()
-    total = summary.total_orders
+    summary = (
+        summarize_filtered_orders(session, aggregate_statement)
+        if include_summary
+        else None
+    )
+    if summary is not None:
+        total = summary["total_orders"]
+    else:
+        count_source = aggregate_statement.with_only_columns(
+            CoreOrder.shop_id,
+            CoreOrder.source_order_id,
+            maintain_column_froms=True,
+        ).order_by(None).subquery()
+        total = session.scalar(select(func.count()).select_from(count_source)) or 0
+
     offset = (page_number - 1) * page_size
     rows = session.execute(
         statement.order_by(CoreOrder.source_updated_at.desc().nullslast())
@@ -243,13 +245,7 @@ def search_orders(
 
     return {
         "items": items,
-        "summary": {
-            "total_orders": summary.total_orders,
-            "total_revenue": summary.total_revenue,
-            "delivered_orders": summary.delivered_orders,
-            "returned_orders": summary.returned_orders,
-            "canceled_orders": summary.canceled_orders,
-        },
+        "summary": summary,
         "pagination": {
             "page_number": page_number,
             "page_size": page_size,
@@ -257,4 +253,43 @@ def search_orders(
             "total_pages": (total + page_size - 1) // page_size,
         },
     }
+
+
+def summarize_filtered_orders(session: Session, statement: Any) -> dict[str, Any]:
+    summary_source = statement.with_only_columns(
+        CoreOrder.total_price,
+        business_status_expression().label("business_status"),
+        maintain_column_froms=True,
+    ).order_by(None).subquery()
+    summary = session.execute(
+        select(
+            func.count().label("total_orders"),
+            func.coalesce(func.sum(summary_source.c.total_price), 0).label(
+                "total_revenue"
+            ),
+            func.count()
+            .filter(summary_source.c.business_status == "delivered")
+            .label("delivered_orders"),
+            func.count()
+            .filter(summary_source.c.business_status == "returned")
+            .label("returned_orders"),
+            func.count()
+            .filter(summary_source.c.business_status == "canceled")
+            .label("canceled_orders"),
+        ).select_from(summary_source)
+    ).one()
+    return {
+        "total_orders": summary.total_orders,
+        "total_revenue": summary.total_revenue,
+        "delivered_orders": summary.delivered_orders,
+        "returned_orders": summary.returned_orders,
+        "canceled_orders": summary.canceled_orders,
+    }
+
+
+def summarize_orders(session: Session, **filters: Any) -> dict[str, Any]:
+    return summarize_filtered_orders(
+        session,
+        filtered_orders_statement(**filters, include_customer=False),
+    )
 
