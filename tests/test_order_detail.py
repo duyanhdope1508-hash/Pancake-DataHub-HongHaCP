@@ -46,6 +46,8 @@ def test_order_detail_masks_phone_and_includes_fulfillment_data() -> None:
     assert result["shipping"]["address"] == "Hanoi"
     assert result["shipping"]["phone_masked"] == "******4321"
     assert result["shipping"]["tracking_code"] == "TRACK-1"
+    assert result["business_status"] == "in_transit"
+    assert result["business_status_label"] == "Đang giao"
     assert "primary_phone" not in str(result)
     assert result["items"][0]["product_name"] == "Product"
 

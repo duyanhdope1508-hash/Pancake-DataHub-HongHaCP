@@ -107,7 +107,7 @@ async function loadFilters() {
   elements.totalOrders.textContent = integerFormatter.format(data.total_orders);
   elements.totalShops.textContent = integerFormatter.format(data.shops.length);
   elements.totalPages.textContent = integerFormatter.format(data.pages.length);
-  elements.totalStatuses.textContent = integerFormatter.format(data.statuses.length);
+  elements.totalStatuses.textContent = integerFormatter.format(data.business_statuses.length);
 
   for (const shop of data.shops) {
     addOption(
@@ -123,11 +123,11 @@ async function loadFilters() {
       `${text(page.page_name, "Không tên")} · ${integerFormatter.format(page.order_count)}`,
     );
   }
-  for (const status of data.statuses) {
+  for (const status of data.business_statuses) {
     addOption(
       elements.statusFilter,
-      status.status,
-      `${text(status.status_name, `Mã ${status.status}`)} · ${integerFormatter.format(status.order_count)}`,
+      status.business_status,
+      `${status.business_status_label} · ${integerFormatter.format(status.order_count)}`,
     );
   }
   for (const carrier of data.carriers) {
@@ -183,11 +183,11 @@ function orderRow(order) {
 
   const statusCell = document.createElement("td");
   statusCell.append(
-    createElement("span", "status-pill", order.status_name || `Mã ${order.status}`),
+    createElement("span", "status-pill", order.business_status_label),
     createElement(
       "span",
       "secondary-text",
-      [order.carrier_name, order.delivery_status].filter(Boolean).join(" · "),
+      [order.status_name, order.carrier_name, order.delivery_status].filter(Boolean).join(" · "),
     ),
   );
 
@@ -227,7 +227,9 @@ async function loadOrders() {
   if (query) params.set("q", query);
   if (elements.shopFilter.value) params.set("shop_id", elements.shopFilter.value);
   if (elements.pageFilter.value) params.set("page_id", elements.pageFilter.value);
-  if (elements.statusFilter.value) params.set("status", elements.statusFilter.value);
+  if (elements.statusFilter.value) {
+    params.set("business_status", elements.statusFilter.value);
+  }
   if (elements.productFilter.value.trim()) params.set("product", elements.productFilter.value.trim());
   if (elements.carrierFilter.value) params.set("carrier_name", elements.carrierFilter.value);
   if (elements.deliveryStatusFilter.value) {
@@ -319,7 +321,7 @@ function renderOrderDetail(order) {
     detailField("Khách hàng", order.customer?.name),
     detailField("Điện thoại", order.customer?.phone_masked),
     detailField("Page", order.page_name),
-    detailField("Trạng thái", order.status_name || `Mã ${order.status}`),
+    detailField("Tình trạng đơn", order.business_status_label),
     detailField("Giá trị", formatMoney(order.total_price, order.currency)),
     detailField("Cập nhật", formatDate(order.updated_at)),
     detailField("Mã vận đơn", shipping.tracking_code),

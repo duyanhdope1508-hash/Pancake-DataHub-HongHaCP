@@ -3,6 +3,7 @@ from typing import Any
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
+from app.business_status import business_status_label, classify_business_status
 from app.models import CoreCustomer, CoreOrder, CoreOrderItem
 from app.search import mask_phone
 
@@ -29,6 +30,12 @@ def serialize_order_detail(
     customer: CoreCustomer | None,
     items: list[CoreOrderItem],
 ) -> dict[str, Any]:
+    normalized_status = classify_business_status(
+        status=order.status,
+        status_name=order.status_name,
+        delivery_status=order.delivery_status,
+        sent_to_carrier_at=order.sent_to_carrier_at,
+    )
     return {
         "shop_id": order.shop_id,
         "order_id": order.source_order_id,
@@ -36,6 +43,8 @@ def serialize_order_detail(
         "page_name": order.page_name,
         "status": order.status,
         "status_name": order.status_name,
+        "business_status": normalized_status,
+        "business_status_label": business_status_label(normalized_status),
         "total_price": order.total_price,
         "total_quantity": order.total_quantity,
         "currency": order.currency,

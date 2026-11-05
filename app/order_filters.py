@@ -3,6 +3,11 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.business_status import (
+    BUSINESS_STATUS_LABELS,
+    BUSINESS_STATUS_ORDER,
+    business_status_expression,
+)
 from app.models import CoreOrder, Shop
 
 
@@ -63,6 +68,13 @@ def order_filters(session: Session) -> dict[str, Any]:
         select(func.min(CoreOrder.inserted_at), func.max(CoreOrder.inserted_at))
     ).one()
 
+    business_status = business_status_expression()
+    business_status_counts = dict(
+        session.execute(
+            select(business_status, func.count()).group_by(business_status)
+        ).all()
+    )
+
     return {
         "total_orders": total_orders,
         "shops": [
@@ -88,6 +100,14 @@ def order_filters(session: Session) -> dict[str, Any]:
                 "order_count": order_count,
             }
             for status, status_name, order_count in status_rows
+        ],
+        "business_statuses": [
+            {
+                "business_status": value,
+                "business_status_label": BUSINESS_STATUS_LABELS[value],
+                "order_count": business_status_counts.get(value, 0),
+            }
+            for value in BUSINESS_STATUS_ORDER
         ],
         "carriers": [
             {"carrier_name": carrier_name, "order_count": order_count}

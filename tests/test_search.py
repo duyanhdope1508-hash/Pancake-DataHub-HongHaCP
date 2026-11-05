@@ -24,6 +24,7 @@ def test_search_supports_fulfillment_and_range_filters() -> None:
     parameters = signature(search_orders).parameters
     expected = {
         "carrier_name",
+        "business_status",
         "delivery_status",
         "date_from",
         "date_to",

@@ -5,6 +5,11 @@ from typing import Any
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.business_status import (
+    business_status_expression,
+    business_status_label,
+    classify_business_status,
+)
 from app.models import CoreCustomer, CoreOrder, CoreOrderItem
 from app.transform import normalize_phone
 
@@ -40,6 +45,7 @@ def search_orders(
     shop_id: str | list[str] | None = None,
     page_id: str | list[str] | None = None,
     status: int | list[int] | None = None,
+    business_status: str | list[str] | None = None,
     carrier_name: str | list[str] | None = None,
     delivery_status: str | list[str] | None = None,
     date_from: datetime | None = None,
@@ -97,6 +103,11 @@ def search_orders(
     statuses = _filter_values(status)
     if statuses:
         statement = statement.where(CoreOrder.status.in_(statuses))
+    business_statuses = _filter_values(business_status)
+    if business_statuses:
+        statement = statement.where(
+            business_status_expression().in_(business_statuses)
+        )
     carriers = _filter_values(carrier_name)
     if carriers:
         statement = statement.where(CoreOrder.carrier_name.in_(carriers))
@@ -159,6 +170,12 @@ def search_orders(
 
     items: list[dict[str, Any]] = []
     for order, customer in rows:
+        normalized_status = classify_business_status(
+            status=order.status,
+            status_name=order.status_name,
+            delivery_status=order.delivery_status,
+            sent_to_carrier_at=order.sent_to_carrier_at,
+        )
         items.append(
             {
                 "shop_id": order.shop_id,
@@ -167,6 +184,8 @@ def search_orders(
                 "page_name": order.page_name,
                 "status": order.status,
                 "status_name": order.status_name,
+                "business_status": normalized_status,
+                "business_status_label": business_status_label(normalized_status),
                 "tracking_code": order.tracking_code,
                 "carrier_name": order.carrier_name,
                 "delivery_status": order.delivery_status,
