@@ -62,3 +62,11 @@ def test_frontend_saved_filters_are_local_and_bounded() -> None:
     assert "captureFilterValues" in javascript
     assert "applySavedFilter" in javascript
 
+
+def test_frontend_uses_compact_dashboard_with_help_tooltips() -> None:
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    assert "Đơn hàng từ mọi page, trong một nơi." not in html
+    assert 'class="overview"' in html
+    assert html.count('class="info-tip') >= 6
+    assert "data-tooltip=" in html
+
