@@ -38,6 +38,11 @@ def test_frontend_has_search_filters_and_dialog() -> None:
         'id="returnedFilter"',
         'id="resetFilters"',
         'id="exportExcel"',
+        'id="savedFilterSelect"',
+        'id="savedFilterName"',
+        'id="saveFilter"',
+        'id="deleteFilter"',
+        'id="savedFilterMessage"',
         'id="filteredOrders"',
         'id="filteredRevenue"',
         'id="filteredDelivered"',
@@ -46,4 +51,12 @@ def test_frontend_has_search_filters_and_dialog() -> None:
         'id="orderDialog"',
     ):
         assert element_id in html
+
+
+def test_frontend_saved_filters_are_local_and_bounded() -> None:
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+    assert "localStorage" in javascript
+    assert "MAX_SAVED_FILTERS = 20" in javascript
+    assert "captureFilterValues" in javascript
+    assert "applySavedFilter" in javascript
 

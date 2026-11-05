@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Pancake Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=5" />
-    <script src="/assets/app.js?v=5" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=6" />
+    <script src="/assets/app.js?v=6" defer></script>
   </head>
   <body>
     <div class="app-shell">
@@ -99,6 +99,22 @@
               </button>
               <button id="resetFilters" class="reset-button" type="button">Xóa bộ lọc</button>
               <button id="exportExcel" class="export-button" type="button">Xuất Excel</button>
+            </div>
+
+            <div class="saved-filter-bar" aria-label="Bộ lọc thường dùng">
+              <label class="saved-filter-select">
+                <span>Bộ lọc đã lưu</span>
+                <select id="savedFilterSelect">
+                  <option value="">Chọn bộ lọc…</option>
+                </select>
+              </label>
+              <label class="saved-filter-name">
+                <span>Đặt tên</span>
+                <input id="savedFilterName" type="text" maxlength="50" placeholder="Ví dụ: Đơn hoàn tháng này" />
+              </label>
+              <button id="saveFilter" class="save-filter-button" type="button">Lưu bộ lọc</button>
+              <button id="deleteFilter" class="delete-filter-button" type="button" disabled>Xóa bộ đã lưu</button>
+              <span id="savedFilterMessage" class="saved-filter-message" role="status" aria-live="polite"></span>
             </div>
 
             <div id="advancedFilters" class="advanced-filters" hidden>

@@ -13,6 +13,11 @@ const elements = {
   toggleAdvanced: document.querySelector("#toggleAdvanced"),
   resetFilters: document.querySelector("#resetFilters"),
   exportExcel: document.querySelector("#exportExcel"),
+  savedFilterSelect: document.querySelector("#savedFilterSelect"),
+  savedFilterName: document.querySelector("#savedFilterName"),
+  saveFilter: document.querySelector("#saveFilter"),
+  deleteFilter: document.querySelector("#deleteFilter"),
+  savedFilterMessage: document.querySelector("#savedFilterMessage"),
   advancedFilters: document.querySelector("#advancedFilters"),
   productFilter: document.querySelector("#productFilter"),
   carrierFilter: document.querySelector("#carrierFilter"),
@@ -44,6 +49,26 @@ const elements = {
   dialogTitle: document.querySelector("#dialogTitle"),
   dialogContent: document.querySelector("#dialogContent"),
   closeDialog: document.querySelector("#closeDialog"),
+};
+
+const SAVED_FILTERS_STORAGE_KEY = "pancakeDataHub.savedFilters.v1";
+const MAX_SAVED_FILTERS = 20;
+
+const filterElements = {
+  query: elements.searchInput,
+  shopId: elements.shopFilter,
+  pageId: elements.pageFilter,
+  businessStatus: elements.statusFilter,
+  product: elements.productFilter,
+  carrierName: elements.carrierFilter,
+  deliveryStatus: elements.deliveryStatusFilter,
+  dateFrom: elements.dateFromFilter,
+  dateTo: elements.dateToFilter,
+  minTotal: elements.minTotalFilter,
+  maxTotal: elements.maxTotalFilter,
+  hasTracking: elements.trackingFilter,
+  sentToCarrier: elements.sentFilter,
+  returned: elements.returnedFilter,
 };
 
 const moneyFormatter = new Intl.NumberFormat("vi-VN", {
@@ -92,6 +117,138 @@ function showError(message) {
 function clearError() {
   elements.errorBanner.hidden = true;
   elements.errorBanner.textContent = "";
+}
+
+function showSavedFilterMessage(message, isError = false) {
+  elements.savedFilterMessage.textContent = message;
+  elements.savedFilterMessage.classList.toggle("is-error", isError);
+}
+
+function readSavedFilters() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(SAVED_FILTERS_STORAGE_KEY) || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (preset) =>
+        preset &&
+        typeof preset.id === "string" &&
+        typeof preset.name === "string" &&
+        preset.values &&
+        typeof preset.values === "object",
+    );
+  } catch {
+    return [];
+  }
+}
+
+function writeSavedFilters(presets) {
+  try {
+    localStorage.setItem(SAVED_FILTERS_STORAGE_KEY, JSON.stringify(presets));
+    return true;
+  } catch {
+    showSavedFilterMessage("Trình duyệt không cho phép lưu bộ lọc.", true);
+    return false;
+  }
+}
+
+function captureFilterValues() {
+  return Object.fromEntries(
+    Object.entries(filterElements).map(([key, element]) => [key, element.value]),
+  );
+}
+
+function createPresetId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function renderSavedFilters(selectedId = "") {
+  const presets = readSavedFilters();
+  const options = [createElement("option", "", "Chọn bộ lọc…")];
+  options[0].value = "";
+  for (const preset of presets) {
+    const option = createElement("option", "", preset.name);
+    option.value = preset.id;
+    options.push(option);
+  }
+  elements.savedFilterSelect.replaceChildren(...options);
+  elements.savedFilterSelect.value = selectedId;
+  elements.deleteFilter.disabled = !elements.savedFilterSelect.value;
+}
+
+function saveCurrentFilter() {
+  showSavedFilterMessage("");
+  if (!validateFilters()) return;
+  const name = elements.savedFilterName.value.trim();
+  if (!name) {
+    showSavedFilterMessage("Hãy nhập tên bộ lọc trước khi lưu.", true);
+    elements.savedFilterName.focus();
+    return;
+  }
+
+  const presets = readSavedFilters();
+  const normalizedName = name.toLocaleLowerCase("vi-VN");
+  const existing = presets.find(
+    (preset) => preset.name.toLocaleLowerCase("vi-VN") === normalizedName,
+  );
+  let selectedId;
+  if (existing) {
+    existing.name = name;
+    existing.values = captureFilterValues();
+    selectedId = existing.id;
+  } else {
+    if (presets.length >= MAX_SAVED_FILTERS) {
+      showSavedFilterMessage(`Chỉ lưu tối đa ${MAX_SAVED_FILTERS} bộ lọc.`, true);
+      return;
+    }
+    selectedId = createPresetId();
+    presets.push({ id: selectedId, name, values: captureFilterValues() });
+  }
+
+  if (!writeSavedFilters(presets)) return;
+  renderSavedFilters(selectedId);
+  showSavedFilterMessage(existing ? "Đã cập nhật bộ lọc." : "Đã lưu bộ lọc.");
+}
+
+function applySavedFilter() {
+  const selectedId = elements.savedFilterSelect.value;
+  elements.deleteFilter.disabled = !selectedId;
+  showSavedFilterMessage("");
+  if (!selectedId) {
+    elements.savedFilterName.value = "";
+    return;
+  }
+
+  const preset = readSavedFilters().find((item) => item.id === selectedId);
+  if (!preset) {
+    renderSavedFilters();
+    return;
+  }
+  elements.filterForm.reset();
+  for (const [key, element] of Object.entries(filterElements)) {
+    element.value = typeof preset.values[key] === "string" ? preset.values[key] : "";
+  }
+  elements.savedFilterSelect.value = selectedId;
+  elements.savedFilterName.value = preset.name;
+  elements.deleteFilter.disabled = false;
+  updateAdvancedLabel();
+  const hasAdvancedFilters = advancedFilterCount() > 0;
+  elements.advancedFilters.hidden = !hasAdvancedFilters;
+  elements.toggleAdvanced.setAttribute("aria-expanded", String(hasAdvancedFilters));
+  state.pageNumber = 1;
+  loadOrders();
+}
+
+function deleteSavedFilter() {
+  const selectedId = elements.savedFilterSelect.value;
+  if (!selectedId) return;
+  const preset = readSavedFilters().find((item) => item.id === selectedId);
+  if (!preset || !window.confirm(`Xóa bộ lọc “${preset.name}”?`)) return;
+  const presets = readSavedFilters().filter((item) => item.id !== selectedId);
+  if (!writeSavedFilters(presets)) return;
+  renderSavedFilters();
+  elements.savedFilterName.value = "";
+  showSavedFilterMessage("Đã xóa bộ lọc đã lưu.");
 }
 
 async function fetchJson(url) {
@@ -452,12 +609,19 @@ elements.advancedFilters.addEventListener("input", updateAdvancedLabel);
 
 elements.resetFilters.addEventListener("click", () => {
   elements.filterForm.reset();
+  elements.savedFilterSelect.value = "";
+  elements.savedFilterName.value = "";
+  elements.deleteFilter.disabled = true;
+  showSavedFilterMessage("");
   updateAdvancedLabel();
   state.pageNumber = 1;
   loadOrders();
 });
 
 elements.exportExcel.addEventListener("click", exportOrders);
+elements.savedFilterSelect.addEventListener("change", applySavedFilter);
+elements.saveFilter.addEventListener("click", saveCurrentFilter);
+elements.deleteFilter.addEventListener("click", deleteSavedFilter);
 
 elements.previousPage.addEventListener("click", () => {
   if (state.pageNumber > 1) {
@@ -481,6 +645,7 @@ elements.orderDialog.addEventListener("click", (event) => {
 async function initialize() {
   try {
     await Promise.all([loadFilters(), loadSystemStatus()]);
+    renderSavedFilters();
     await loadOrders();
   } catch (error) {
     showError(`Không thể khởi tạo cổng tra cứu. ${error.message}`);

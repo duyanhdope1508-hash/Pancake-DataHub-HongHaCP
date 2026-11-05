@@ -252,6 +252,74 @@ select {
   opacity: 0.55;
 }
 
+.saved-filter-bar {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: minmax(210px, 1fr) minmax(220px, 1fr) auto auto;
+  gap: 10px;
+  align-items: end;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #f7f8f5;
+}
+
+.saved-filter-select > span,
+.saved-filter-name > span {
+  display: block;
+  margin: 0 0 7px 2px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.saved-filter-name input {
+  padding: 0 13px;
+}
+
+.save-filter-button,
+.delete-filter-button {
+  min-height: 46px;
+  padding: 0 15px;
+  border: 1px solid var(--accent);
+  border-radius: 11px;
+  background: #fff;
+  color: var(--accent);
+  font-weight: 750;
+}
+
+.save-filter-button {
+  background: var(--accent);
+  color: #fff;
+}
+
+.save-filter-button:hover {
+  background: var(--accent-dark);
+}
+
+.delete-filter-button {
+  border-color: var(--line);
+  color: var(--muted);
+}
+
+.saved-filter-message {
+  grid-column: 1 / -1;
+  min-height: 16px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.saved-filter-message:empty {
+  display: none;
+}
+
+.saved-filter-message.is-error {
+  color: var(--danger);
+}
+
 .advanced-filters {
   grid-column: 1 / -1;
   display: grid;
@@ -666,6 +734,10 @@ dialog::backdrop {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .saved-filter-bar {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .filtered-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -716,6 +788,10 @@ dialog::backdrop {
   }
 
   .advanced-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .saved-filter-bar {
     grid-template-columns: 1fr;
   }
 
