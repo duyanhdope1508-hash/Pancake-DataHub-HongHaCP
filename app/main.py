@@ -10,12 +10,14 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from starlette.background import BackgroundTask
 
+from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.order_detail import AmbiguousOrderError, OrderNotFoundError, get_order_detail
 from app.order_export import ExportLimitExceeded, export_orders_xlsx
 from app.order_filters import order_filters
 from app.search import search_orders
 from app.status import database_status
+from app.worker import run_cycle
 
 
 @asynccontextmanager
@@ -63,6 +65,28 @@ def health() -> dict[str, str]:
 @app.get("/api/system-status")
 def system_status() -> dict:
     return database_status()
+
+
+@app.post("/api/sync")
+async def sync_now() -> dict:
+    result = await run_cycle(get_settings())
+    if result["status"] == "skipped":
+        raise HTTPException(
+            status_code=409,
+            detail="Đang có một lượt đồng bộ khác chạy. Hãy chờ lượt đó hoàn tất.",
+        )
+
+    sync_result = result["sync"]
+    transform_result = result["transform"]
+    return {
+        "status": "completed" if sync_result["success"] else "completed_with_errors",
+        "success": sync_result["success"],
+        "shops_processed": sync_result["shops_processed"],
+        "connectors_failed": sync_result["connectors_failed"],
+        "rows_seen": sync_result["rows_seen"],
+        "rows_written": sync_result["rows_written"],
+        "orders_transformed": transform_result["orders_transformed"],
+    }
 
 
 @app.get("/api/orders")

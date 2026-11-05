@@ -107,6 +107,26 @@ select {
   font-weight: 600;
 }
 
+.sync-now-button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--paper);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.sync-now-button:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.sync-now-button:disabled {
+  min-width: 118px;
+}
+
 .state-dot {
   width: 8px;
   height: 8px;
@@ -750,6 +770,10 @@ dialog::backdrop {
 
   .system-state {
     display: none;
+  }
+
+  .sync-now-button {
+    margin-left: auto;
   }
 
   .hero {

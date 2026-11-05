@@ -42,6 +42,7 @@ const elements = {
   totalPages: document.querySelector("#totalPages"),
   totalStatuses: document.querySelector("#totalStatuses"),
   systemStateText: document.querySelector("#systemStateText"),
+  syncNow: document.querySelector("#syncNow"),
   previousPage: document.querySelector("#previousPage"),
   nextPage: document.querySelector("#nextPage"),
   pageIndicator: document.querySelector("#pageIndicator"),
@@ -320,6 +321,40 @@ async function loadSystemStatus() {
     return;
   }
   elements.systemStateText.textContent = `Đồng bộ ${formatDate(latest.finished_at)}`;
+}
+
+async function syncNow() {
+  clearError();
+  elements.syncNow.disabled = true;
+  elements.syncNow.textContent = "Đang đồng bộ…";
+  elements.systemStateText.textContent = "Đang lấy đơn mới…";
+  try {
+    const response = await fetch("/api/sync", {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || `Yêu cầu thất bại (${response.status})`);
+    }
+    await Promise.all([loadSystemStatus(), loadOrders()]);
+    const shopCount = integerFormatter.format(payload.shops_processed);
+    const orderCount = integerFormatter.format(payload.orders_transformed);
+    if (payload.success) {
+      elements.syncNow.textContent = `Xong · ${shopCount} shop, ${orderCount} đơn cập nhật`;
+    } else {
+      showError(
+        `Đã đồng bộ nhưng có ${integerFormatter.format(payload.connectors_failed)} kết nối lỗi.`,
+      );
+      elements.syncNow.textContent = "Hoàn tất, có lỗi";
+    }
+  } catch (error) {
+    showError(`Không thể đồng bộ. ${error.message}`);
+    elements.systemStateText.textContent = "Đồng bộ chưa hoàn tất";
+    elements.syncNow.textContent = "Thử đồng bộ lại";
+  } finally {
+    elements.syncNow.disabled = false;
+  }
 }
 
 function orderRow(order) {
@@ -619,6 +654,7 @@ elements.resetFilters.addEventListener("click", () => {
 });
 
 elements.exportExcel.addEventListener("click", exportOrders);
+elements.syncNow.addEventListener("click", syncNow);
 elements.savedFilterSelect.addEventListener("change", applySavedFilter);
 elements.saveFilter.addEventListener("click", saveCurrentFilter);
 elements.deleteFilter.addEventListener("click", deleteSavedFilter);

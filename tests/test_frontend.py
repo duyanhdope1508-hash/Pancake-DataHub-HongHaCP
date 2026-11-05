@@ -20,6 +20,7 @@ def test_frontend_has_search_filters_and_dialog() -> None:
     for element_id in (
         'id="filterForm"',
         'id="systemStateText"',
+        'id="syncNow"',
         'id="searchInput"',
         'id="shopFilter"',
         'id="pageFilter"',
