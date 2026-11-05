@@ -38,7 +38,7 @@ def extract_collection(payload: Any, *candidate_keys: str) -> list[dict[str, Any
 
 
 class PancakeClient:
-    def __init__(self, base_url: str, api_key: str, *, timeout_seconds: float = 30.0):
+    def __init__(self, base_url: str, api_key: str, *, timeout_seconds: float = 60.0):
         self._api_key = api_key
         self._client = httpx.AsyncClient(
             base_url=base_url.rstrip("/"),
@@ -60,7 +60,12 @@ class PancakeClient:
             try:
                 response = await self._client.get(path, params=request_params)
             except httpx.RequestError as exc:
-                raise PancakeApiError("Could not connect to the Pancake API") from exc
+                if attempt < 3:
+                    await asyncio.sleep(2**attempt)
+                    continue
+                raise PancakeApiError(
+                    "Could not connect to the Pancake API after retries"
+                ) from exc
             if response.status_code < 400:
                 try:
                     return response.json()
