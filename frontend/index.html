@@ -5,21 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=9" />
-    <script src="/assets/app.js?v=9" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=10" />
+    <script src="/assets/app.js?v=10" defer></script>
   </head>
   <body>
     <div class="app-shell">
       <header class="topbar">
         <div class="brand-copy">
-          <p class="brand-organization">HỒNG HÀ</p>
-          <h1>Data Hub</h1>
+          <h1>HỒNG HÀ CP DATAHUB</h1>
         </div>
         <div class="topbar-actions">
           <div class="system-state">
             <span class="state-dot" aria-hidden="true"></span>
             <span id="systemStateText">Đang kiểm tra dữ liệu…</span>
-            <span class="info-tip" tabindex="0" data-tooltip="Thời điểm hoàn tất lượt đồng bộ đơn hàng gần nhất." aria-label="Giải thích trạng thái đồng bộ">i</span>
+            <span class="info-tip drop-down align-right" tabindex="0" data-tooltip="Thời điểm hoàn tất lượt đồng bộ đơn hàng gần nhất." aria-label="Giải thích trạng thái đồng bộ">i</span>
           </div>
           <button id="syncNow" class="sync-now-button" type="button">Đồng bộ ngay</button>
         </div>
@@ -41,7 +40,7 @@
               <strong id="totalShops">—</strong>
             </article>
             <article class="summary-card">
-              <span>Page <span class="info-tip" tabindex="0" data-tooltip="Page Facebook ghi nhận trên đơn hàng. Một số page nội bộ vẫn xuất hiện nếu Pancake POS trả về." aria-label="Giải thích Page">i</span></span>
+              <span>Page <span class="info-tip drop-down align-right" tabindex="0" data-tooltip="Page Facebook ghi nhận trên đơn hàng. Một số page nội bộ vẫn xuất hiện nếu Pancake POS trả về." aria-label="Giải thích Page">i</span></span>
               <strong id="totalPages">—</strong>
             </article>
             <article class="summary-card">
@@ -62,7 +61,7 @@
 
           <form id="filterForm" class="filters" role="search">
             <label class="filter-field search-field">
-              <span class="field-label">Tra cứu <span class="info-tip" tabindex="0" data-tooltip="Tên khách được ưu tiên khớp chính xác toàn bộ. Nếu không có tên chính xác, hệ thống tìm rộng theo mã đơn, SĐT, địa chỉ và sản phẩm." aria-label="Giải thích cách tìm kiếm">i</span></span>
+              <span class="field-label">Tra cứu <span class="info-tip drop-down" tabindex="0" data-tooltip="Tên khách được ưu tiên khớp chính xác toàn bộ. Nếu không có tên chính xác, hệ thống tìm rộng theo mã đơn, SĐT, địa chỉ và sản phẩm." aria-label="Giải thích cách tìm kiếm">i</span></span>
               <span class="search-input-wrap">
                 <svg aria-hidden="true" viewBox="0 0 24 24">
                   <path d="m21 21-4.3-4.3m2.3-5.2A7.5 7.5 0 1 1 4 11.5a7.5 7.5 0 0 1 15 0Z" />
@@ -79,7 +78,7 @@
             </label>
 
             <label class="filter-field">
-              <span class="field-label">Page <span class="info-tip" tabindex="0" data-tooltip="Page lấy trực tiếp từ dữ liệu đơn Pancake POS, không phải tên cửa hàng." aria-label="Phân biệt Page và cửa hàng">i</span></span>
+              <span class="field-label">Page <span class="info-tip drop-down" tabindex="0" data-tooltip="Page lấy trực tiếp từ dữ liệu đơn Pancake POS, không phải tên cửa hàng." aria-label="Phân biệt Page và cửa hàng">i</span></span>
               <select id="pageFilter">
                 <option value="">Tất cả page</option>
               </select>
@@ -93,7 +92,7 @@
             </label>
 
             <label class="filter-field">
-              <span class="field-label">Sắp xếp <span class="info-tip" tabindex="0" data-tooltip="Gom theo khách ưu tiên SĐT, sau đó mới dùng tên. Đây chỉ là cách xếp gần nhau, không tự động hợp nhất hồ sơ khách." aria-label="Giải thích gom khách hàng">i</span></span>
+              <span class="field-label">Sắp xếp <span class="info-tip drop-down align-right" tabindex="0" data-tooltip="Gom theo khách ưu tiên SĐT, sau đó mới dùng tên. Đây chỉ là cách xếp gần nhau, không tự động hợp nhất hồ sơ khách." aria-label="Giải thích gom khách hàng">i</span></span>
               <select id="sortFilter">
                 <option value="recent">Mới cập nhật</option>
                 <option value="customer">Gom theo khách hàng</option>

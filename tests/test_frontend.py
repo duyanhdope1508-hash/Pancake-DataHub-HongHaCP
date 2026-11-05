@@ -69,4 +69,6 @@ def test_frontend_uses_compact_dashboard_with_help_tooltips() -> None:
     assert 'class="overview"' in html
     assert html.count('class="info-tip') >= 6
     assert "data-tooltip=" in html
+    assert "HỒNG HÀ CP DATAHUB" in html
+    assert "info-tip drop-down" in html
 
