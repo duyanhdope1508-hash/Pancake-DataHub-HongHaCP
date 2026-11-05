@@ -6,6 +6,7 @@ import pytest
 from app.add_connector import merge_connector, write_connectors
 from app.add_connectors import merge_discovered_connector
 from app.connectors import PancakeConnector
+from app.update_connector_key import replace_connector_key
 
 
 def existing_connector() -> PancakeConnector:
@@ -95,3 +96,27 @@ def test_merge_discovered_connector_only_adds_unconfigured_shops() -> None:
     assert added is not None
     assert added.shop_ids == frozenset({"shop-2"})
     assert connectors[-1] == added
+
+
+def test_replace_connector_key_preserves_connector_identity() -> None:
+    connectors = [existing_connector()]
+
+    updated = replace_connector_key(
+        connectors,
+        shop_id="shop-1",
+        api_key="replacement-api-key",
+    )
+
+    assert updated[0].name == "legacy-env"
+    assert updated[0].shop_ids == frozenset({"shop-1"})
+    assert updated[0].api_key == "replacement-api-key"
+    assert connectors[0].api_key == "valid-existing-key"
+
+
+def test_replace_connector_key_rejects_unknown_shop() -> None:
+    with pytest.raises(ValueError, match="exactly one connector"):
+        replace_connector_key(
+            [existing_connector()],
+            shop_id="missing-shop",
+            api_key="replacement-api-key",
+        )
