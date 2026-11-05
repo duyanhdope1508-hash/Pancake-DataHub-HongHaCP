@@ -414,6 +414,77 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261105_014_add_auth_foundation",
+        (
+            """
+            CREATE TABLE IF NOT EXISTS auth_users (
+                id VARCHAR(36) PRIMARY KEY,
+                username VARCHAR(128) NOT NULL UNIQUE,
+                display_name VARCHAR(255) NOT NULL,
+                password_hash TEXT NOT NULL,
+                role VARCHAR(32) NOT NULL DEFAULT 'staff',
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                last_login_at TIMESTAMPTZ,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT ck_auth_users_role CHECK (role IN ('admin', 'staff'))
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS auth_user_shop_access (
+                user_id VARCHAR(36) NOT NULL,
+                shop_id VARCHAR(64) NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                PRIMARY KEY (user_id, shop_id),
+                CONSTRAINT fk_auth_user_shop_access_user
+                    FOREIGN KEY (user_id) REFERENCES auth_users (id) ON DELETE CASCADE,
+                CONSTRAINT fk_auth_user_shop_access_shop
+                    FOREIGN KEY (shop_id) REFERENCES pancake_shops (id) ON DELETE CASCADE
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS auth_sessions (
+                id VARCHAR(36) PRIMARY KEY,
+                token_hash VARCHAR(64) NOT NULL UNIQUE,
+                user_id VARCHAR(36) NOT NULL,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                expires_at TIMESTAMPTZ NOT NULL,
+                revoked_at TIMESTAMPTZ,
+                CONSTRAINT fk_auth_sessions_user
+                    FOREIGN KEY (user_id) REFERENCES auth_users (id) ON DELETE CASCADE
+            )
+            """,
+            (
+                "CREATE INDEX IF NOT EXISTS ix_auth_sessions_user_expires "
+                "ON auth_sessions (user_id, expires_at)"
+            ),
+            """
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id VARCHAR(36) PRIMARY KEY,
+                actor_user_id VARCHAR(36),
+                action VARCHAR(128) NOT NULL,
+                resource_type VARCHAR(64),
+                resource_id VARCHAR(255),
+                result VARCHAR(32) NOT NULL DEFAULT 'success',
+                metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                ip_address VARCHAR(64),
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_audit_logs_actor
+                    FOREIGN KEY (actor_user_id) REFERENCES auth_users (id) ON DELETE SET NULL
+            )
+            """,
+            (
+                "CREATE INDEX IF NOT EXISTS ix_audit_logs_actor_created "
+                "ON audit_logs (actor_user_id, created_at)"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_audit_logs_action_created "
+                "ON audit_logs (action, created_at)"
+            ),
+        ),
+    ),
 )
 
 

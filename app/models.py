@@ -4,6 +4,7 @@ from uuid import uuid4
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -31,6 +32,91 @@ class Shop(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
+class User(Base):
+    __tablename__ = "auth_users"
+    __table_args__ = (
+        CheckConstraint("role IN ('admin', 'staff')", name="ck_auth_users_role"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    username: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    role: Mapped[str] = mapped_column(String(32), nullable=False, default="staff")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+    def __repr__(self) -> str:
+        return f"User(id={self.id!r}, username={self.username!r}, role={self.role!r})"
+
+
+class UserShopAccess(Base):
+    __tablename__ = "auth_user_shop_access"
+
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("auth_users.id", ondelete="CASCADE"), primary_key=True
+    )
+    shop_id: Mapped[str] = mapped_column(
+        String(64), ForeignKey("pancake_shops.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class UserSession(Base):
+    __tablename__ = "auth_sessions"
+    __table_args__ = (
+        Index("ix_auth_sessions_user_expires", "user_id", "expires_at"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("auth_users.id", ondelete="CASCADE"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_actor_created", "actor_user_id", "created_at"),
+        Index("ix_audit_logs_action_created", "action", "created_at"),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid4())
+    )
+    actor_user_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("auth_users.id", ondelete="SET NULL"), nullable=True
+    )
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    resource_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    result: Mapped[str] = mapped_column(String(32), nullable=False, default="success")
+    metadata_json: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    ip_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
 
