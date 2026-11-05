@@ -363,7 +363,13 @@ function orderRow(order) {
   const orderCell = document.createElement("td");
   orderCell.append(
     createElement("span", "order-code", order.order_id),
-    createElement("span", "secondary-text", order.shop_id),
+    createElement("span", "secondary-text", formatDate(order.inserted_at)),
+  );
+
+  const shopCell = document.createElement("td");
+  shopCell.append(
+    createElement("strong", "", order.shop_name),
+    createElement("span", "secondary-text", `Shop ID ${order.shop_id}`),
   );
 
   const customerCell = document.createElement("td");
@@ -397,7 +403,16 @@ function orderRow(order) {
   viewButton.addEventListener("click", () => openOrder(order.order_id, order.shop_id));
   actionCell.append(viewButton);
 
-  row.append(orderCell, customerCell, pageCell, statusCell, totalCell, updatedCell, actionCell);
+  row.append(
+    orderCell,
+    shopCell,
+    customerCell,
+    pageCell,
+    statusCell,
+    totalCell,
+    updatedCell,
+    actionCell,
+  );
   return row;
 }
 
@@ -582,6 +597,8 @@ function renderOrderDetail(order) {
   const shipping = order.shipping || {};
   const grid = createElement("div", "detail-grid");
   grid.append(
+    detailField("Cửa hàng", order.shop_name),
+    detailField("Shop ID", order.shop_id),
     detailField("Khách hàng", order.customer?.name),
     detailField("Điện thoại", order.customer?.phone_masked),
     detailField("Page", order.page_name),

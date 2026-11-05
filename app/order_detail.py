@@ -4,7 +4,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.business_status import business_status_label, classify_business_status
-from app.models import CoreCustomer, CoreOrder, CoreOrderItem
+from app.models import CoreCustomer, CoreOrder, CoreOrderItem, Shop
 from app.search import mask_phone
 
 
@@ -29,6 +29,8 @@ def serialize_order_detail(
     order: CoreOrder,
     customer: CoreCustomer | None,
     items: list[CoreOrderItem],
+    *,
+    shop_name: str | None = None,
 ) -> dict[str, Any]:
     normalized_status = classify_business_status(
         status=order.status,
@@ -38,6 +40,7 @@ def serialize_order_detail(
     )
     return {
         "shop_id": order.shop_id,
+        "shop_name": shop_name or order.shop_id,
         "order_id": order.source_order_id,
         "page_id": order.source_page_id,
         "page_name": order.page_name,
@@ -120,5 +123,6 @@ def get_order_detail(
             .order_by(CoreOrderItem.line_number.asc())
         ).all()
     )
-    return serialize_order_detail(order, customer, items)
+    shop_name = session.scalar(select(Shop.name).where(Shop.id == order.shop_id))
+    return serialize_order_detail(order, customer, items, shop_name=shop_name)
 

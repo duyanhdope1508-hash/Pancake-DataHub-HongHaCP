@@ -40,8 +40,9 @@ def test_order_detail_masks_phone_and_includes_fulfillment_data() -> None:
         )
     ]
 
-    result = serialize_order_detail(order, customer, items)
+    result = serialize_order_detail(order, customer, items, shop_name="Shop One")
 
+    assert result["shop_name"] == "Shop One"
     assert result["customer"]["phone_masked"] == "******5678"
     assert result["shipping"]["address"] == "Hanoi"
     assert result["shipping"]["phone_masked"] == "******4321"

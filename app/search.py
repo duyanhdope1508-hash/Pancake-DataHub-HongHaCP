@@ -10,7 +10,7 @@ from app.business_status import (
     business_status_label,
     classify_business_status,
 )
-from app.models import CoreCustomer, CoreOrder, CoreOrderItem
+from app.models import CoreCustomer, CoreOrder, CoreOrderItem, Shop
 from app.transform import normalize_customer_name
 
 
@@ -224,6 +224,13 @@ def search_orders(
         .offset(offset)
         .limit(page_size)
     ).all()
+    shop_names = dict(
+        session.execute(
+            select(Shop.id, Shop.name).where(
+                Shop.id.in_({order.shop_id for order, _customer in rows})
+            )
+        ).all()
+    )
 
     items: list[dict[str, Any]] = []
     for order, customer in rows:
@@ -236,6 +243,7 @@ def search_orders(
         items.append(
             {
                 "shop_id": order.shop_id,
+                "shop_name": shop_names.get(order.shop_id, order.shop_id),
                 "order_id": order.source_order_id,
                 "page_id": order.source_page_id,
                 "page_name": order.page_name,

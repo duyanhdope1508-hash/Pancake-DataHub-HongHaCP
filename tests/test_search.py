@@ -50,6 +50,7 @@ def test_search_source_exposes_filtered_summary() -> None:
     assert '"delivered_orders"' in source
     assert '"returned_orders"' in source
     assert '"canceled_orders"' in source
+    assert '"shop_name"' in source
 
 
 def test_migrations_add_trigram_indexes_for_keyword_search() -> None:
