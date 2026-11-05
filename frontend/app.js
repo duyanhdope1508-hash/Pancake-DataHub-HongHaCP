@@ -27,6 +27,10 @@ const elements = {
   emptyState: document.querySelector("#emptyState"),
   errorBanner: document.querySelector("#errorBanner"),
   resultCount: document.querySelector("#resultCount"),
+  filteredOrders: document.querySelector("#filteredOrders"),
+  filteredRevenue: document.querySelector("#filteredRevenue"),
+  filteredDelivered: document.querySelector("#filteredDelivered"),
+  filteredFailed: document.querySelector("#filteredFailed"),
   totalOrders: document.querySelector("#totalOrders"),
   totalShops: document.querySelector("#totalShops"),
   totalPages: document.querySelector("#totalPages"),
@@ -209,8 +213,15 @@ function renderOrders(data) {
   elements.emptyState.hidden = data.items.length !== 0;
 
   const pagination = data.pagination;
+  const summary = data.summary;
   state.totalPages = Math.max(pagination.total_pages, 1);
   elements.resultCount.textContent = `${integerFormatter.format(pagination.total_items)} kết quả`;
+  elements.filteredOrders.textContent = integerFormatter.format(summary.total_orders);
+  elements.filteredRevenue.textContent = formatMoney(summary.total_revenue);
+  elements.filteredDelivered.textContent = integerFormatter.format(summary.delivered_orders);
+  elements.filteredFailed.textContent = integerFormatter.format(
+    summary.returned_orders + summary.canceled_orders,
+  );
   elements.pageIndicator.textContent = `Trang ${state.pageNumber} / ${state.totalPages}`;
   elements.previousPage.disabled = state.pageNumber <= 1;
   elements.nextPage.disabled = state.pageNumber >= state.totalPages;

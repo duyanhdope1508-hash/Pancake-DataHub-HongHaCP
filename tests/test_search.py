@@ -1,4 +1,5 @@
 from inspect import signature
+from pathlib import Path
 
 from app.search import escape_like, mask_phone, search_orders
 
@@ -36,4 +37,12 @@ def test_search_supports_fulfillment_and_range_filters() -> None:
         "product",
     }
     assert expected <= parameters.keys()
+
+
+def test_search_source_exposes_filtered_summary() -> None:
+    source = Path("app/search.py").read_text(encoding="utf-8")
+    assert '"total_revenue"' in source
+    assert '"delivered_orders"' in source
+    assert '"returned_orders"' in source
+    assert '"canceled_orders"' in source
 

@@ -158,9 +158,29 @@ def search_orders(
             .exists()
         )
 
-    total = session.scalar(
-        select(func.count()).select_from(statement.order_by(None).subquery())
-    ) or 0
+    summary_source = statement.with_only_columns(
+        CoreOrder.total_price,
+        business_status_expression().label("business_status"),
+        maintain_column_froms=True,
+    ).order_by(None).subquery()
+    summary = session.execute(
+        select(
+            func.count().label("total_orders"),
+            func.coalesce(func.sum(summary_source.c.total_price), 0).label(
+                "total_revenue"
+            ),
+            func.count()
+            .filter(summary_source.c.business_status == "delivered")
+            .label("delivered_orders"),
+            func.count()
+            .filter(summary_source.c.business_status == "returned")
+            .label("returned_orders"),
+            func.count()
+            .filter(summary_source.c.business_status == "canceled")
+            .label("canceled_orders"),
+        ).select_from(summary_source)
+    ).one()
+    total = summary.total_orders
     offset = (page_number - 1) * page_size
     rows = session.execute(
         statement.order_by(CoreOrder.source_updated_at.desc().nullslast())
@@ -205,6 +225,13 @@ def search_orders(
 
     return {
         "items": items,
+        "summary": {
+            "total_orders": summary.total_orders,
+            "total_revenue": summary.total_revenue,
+            "delivered_orders": summary.delivered_orders,
+            "returned_orders": summary.returned_orders,
+            "canceled_orders": summary.canceled_orders,
+        },
         "pagination": {
             "page_number": page_number,
             "page_size": page_size,
