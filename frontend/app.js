@@ -132,6 +132,7 @@ const AUDIT_ACTION_LABELS = {
   "orders.sync": "Đồng bộ đơn",
   "orders.export": "Xuất Excel",
   "orders.view_detail": "Xem chi tiết đơn",
+  "orders.view_detail.daily": "Tổng hợp lượt xem đơn",
   "security.rate_limit": "Chặn lấy dữ liệu hàng loạt",
 };
 
@@ -790,6 +791,9 @@ function auditDetail(item) {
   }
   if (item.action === "security.rate_limit") {
     return `Đã dùng ${integerFormatter.format(metadata.used || 0)} / ${integerFormatter.format(metadata.limit || 0)} · ${metadata.quota || "Hạn mức bảo vệ"}`;
+  }
+  if (item.action === "orders.view_detail.daily") {
+    return `${integerFormatter.format(metadata.event_count || 0)} lượt mở · ${integerFormatter.format(metadata.unique_order_count || 0)} đơn trong ngày`;
   }
   return item.resource_id ? `${text(item.resource_type, "Đối tượng")}: ${item.resource_id}` : "—";
 }

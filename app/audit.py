@@ -1,10 +1,106 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session, aliased
 
 from app.models import AuditLog, User
+
+LOCAL_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
+AUDIT_CLEANUP_ADVISORY_LOCK_ID = 1_735_531_091
+
+
+def cleanup_audit_history(
+    session: Session,
+    *,
+    detail_retention_days: int,
+    general_retention_days: int,
+    now: datetime | None = None,
+) -> dict[str, int]:
+    if detail_retention_days < 1 or general_retention_days < detail_retention_days:
+        raise ValueError("Audit retention periods are invalid.")
+    current_time = now or datetime.now(UTC)
+    detail_retention_edge = current_time - timedelta(days=detail_retention_days)
+    detail_cutoff = datetime.combine(
+        detail_retention_edge.astimezone(LOCAL_TIMEZONE).date(),
+        time.min,
+        tzinfo=LOCAL_TIMEZONE,
+    ).astimezone(UTC)
+    general_cutoff = current_time - timedelta(days=general_retention_days)
+
+    session.execute(
+        text("SELECT pg_advisory_xact_lock(:lock_id)"),
+        {"lock_id": AUDIT_CLEANUP_ADVISORY_LOCK_ID},
+    )
+    aggregate_result = session.execute(
+        text(
+            """
+            INSERT INTO audit_logs (
+                id, actor_user_id, action, resource_type, resource_id,
+                result, metadata_json, created_at
+            )
+            SELECT
+                'sum-' || substr(
+                    md5(
+                        COALESCE(actor_user_id, 'system') || ':' ||
+                        DATE(timezone('Asia/Ho_Chi_Minh', created_at))::text
+                    ),
+                    1,
+                    32
+                ),
+                actor_user_id,
+                'orders.view_detail.daily',
+                'audit_summary',
+                DATE(timezone('Asia/Ho_Chi_Minh', created_at))::text || ':' ||
+                    COALESCE(actor_user_id, 'system'),
+                'success',
+                jsonb_build_object(
+                    'event_count', COUNT(*),
+                    'unique_order_count', COUNT(DISTINCT resource_id),
+                    'summary_date',
+                        DATE(timezone('Asia/Ho_Chi_Minh', created_at))::text
+                ),
+                MAX(created_at)
+            FROM audit_logs
+            WHERE action = 'orders.view_detail'
+              AND created_at < :detail_cutoff
+            GROUP BY
+                actor_user_id,
+                DATE(timezone('Asia/Ho_Chi_Minh', created_at))
+            ON CONFLICT (id) DO UPDATE SET
+                metadata_json = jsonb_build_object(
+                    'event_count',
+                        COALESCE((audit_logs.metadata_json->>'event_count')::bigint, 0) +
+                        COALESCE((EXCLUDED.metadata_json->>'event_count')::bigint, 0),
+                    'unique_order_count',
+                        COALESCE((audit_logs.metadata_json->>'unique_order_count')::bigint, 0) +
+                        COALESCE((EXCLUDED.metadata_json->>'unique_order_count')::bigint, 0),
+                    'summary_date', EXCLUDED.metadata_json->>'summary_date'
+                ),
+                created_at = GREATEST(audit_logs.created_at, EXCLUDED.created_at)
+            """
+        ),
+        {"detail_cutoff": detail_cutoff},
+    )
+    detail_delete_result = session.execute(
+        delete(AuditLog).where(
+            AuditLog.action == "orders.view_detail",
+            AuditLog.created_at < detail_cutoff,
+        )
+    )
+    general_delete_result = session.execute(
+        delete(AuditLog).where(
+            AuditLog.action != "orders.view_detail",
+            AuditLog.created_at < general_cutoff,
+        )
+    )
+    session.flush()
+    return {
+        "summaries_upserted": max(aggregate_result.rowcount or 0, 0),
+        "detail_events_deleted": max(detail_delete_result.rowcount or 0, 0),
+        "general_events_deleted": max(general_delete_result.rowcount or 0, 0),
+    }
 
 
 def add_audit_event(

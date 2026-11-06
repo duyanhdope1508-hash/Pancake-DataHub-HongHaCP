@@ -1,8 +1,36 @@
 from datetime import UTC, datetime
 from unittest.mock import Mock
 
-from app.audit import add_audit_event, list_audit_logs
+from app.audit import add_audit_event, cleanup_audit_history, list_audit_logs
 from app.models import AuditLog
+
+
+def test_cleanup_aggregates_old_detail_events_before_deleting() -> None:
+    session = Mock()
+    session.execute.side_effect = [
+        Mock(),
+        Mock(rowcount=2),
+        Mock(rowcount=150),
+        Mock(rowcount=12),
+    ]
+    now = datetime(2026, 11, 6, 8, 0, tzinfo=UTC)
+
+    result = cleanup_audit_history(
+        session,
+        detail_retention_days=90,
+        general_retention_days=365,
+        now=now,
+    )
+
+    assert result == {
+        "summaries_upserted": 2,
+        "detail_events_deleted": 150,
+        "general_events_deleted": 12,
+    }
+    aggregate_statement = str(session.execute.call_args_list[1].args[0])
+    assert "orders.view_detail.daily" in aggregate_statement
+    assert "ON CONFLICT (id) DO UPDATE" in aggregate_statement
+    session.flush.assert_called_once_with()
 
 
 def test_order_detail_audit_is_deduplicated_within_window() -> None:

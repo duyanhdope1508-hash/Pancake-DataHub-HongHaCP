@@ -58,3 +58,24 @@ def test_http_request_logging_is_disabled_to_protect_api_keys() -> None:
         assert httpx_logger.level == logging.WARNING
     finally:
         httpx_logger.setLevel(previous_level)
+
+
+def test_audit_cleanup_runs_at_most_once_per_interval(monkeypatch) -> None:
+    calls: list[int] = []
+
+    def fake_cleanup(_settings: Settings) -> dict[str, int]:
+        calls.append(1)
+        return {"detail_events_deleted": 10}
+
+    monkeypatch.setattr(worker, "run_audit_cleanup", fake_cleanup)
+    monkeypatch.setattr(worker, "_last_audit_cleanup_at", None)
+    settings = Settings(_env_file=None, audit_cleanup_interval_seconds=86_400)
+
+    first = worker.cleanup_audit_history_if_due(settings, current_monotonic=100.0)
+    second = worker.cleanup_audit_history_if_due(settings, current_monotonic=200.0)
+    third = worker.cleanup_audit_history_if_due(settings, current_monotonic=86_501.0)
+
+    assert first == {"detail_events_deleted": 10}
+    assert second is None
+    assert third == {"detail_events_deleted": 10}
+    assert len(calls) == 2

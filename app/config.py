@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     staff_exports_per_hour: int = Field(default=5, ge=1, le=100)
     staff_export_rows_per_day: int = Field(default=2_000, ge=500, le=100_000)
     audit_detail_dedup_seconds: int = Field(default=600, ge=60, le=86_400)
+    audit_detail_retention_days: int = Field(default=90, ge=7, le=365)
+    audit_general_retention_days: int = Field(default=365, ge=90, le=3_650)
+    audit_cleanup_interval_seconds: int = Field(default=86_400, ge=3_600, le=604_800)
 
     @property
     def shop_allowlist(self) -> set[str]:
