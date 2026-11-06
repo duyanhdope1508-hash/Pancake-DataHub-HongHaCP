@@ -5,6 +5,8 @@ const state = {
   currentUser: null,
   staffManagement: null,
   passwordChangeRequired: false,
+  auditPageNumber: 1,
+  auditTotalPages: 1,
 };
 
 const elements = {
@@ -18,6 +20,7 @@ const elements = {
   currentUserName: document.querySelector("#currentUserName"),
   currentUserRole: document.querySelector("#currentUserRole"),
   manageStaffButton: document.querySelector("#manageStaffButton"),
+  auditLogButton: document.querySelector("#auditLogButton"),
   changePasswordButton: document.querySelector("#changePasswordButton"),
   logoutButton: document.querySelector("#logoutButton"),
   passwordDialog: document.querySelector("#passwordDialog"),
@@ -50,6 +53,16 @@ const elements = {
   clearStaffShops: document.querySelector("#clearStaffShops"),
   staffList: document.querySelector("#staffList"),
   staffCount: document.querySelector("#staffCount"),
+  auditDialog: document.querySelector("#auditDialog"),
+  closeAuditDialog: document.querySelector("#closeAuditDialog"),
+  auditActionFilter: document.querySelector("#auditActionFilter"),
+  refreshAuditLog: document.querySelector("#refreshAuditLog"),
+  auditBody: document.querySelector("#auditBody"),
+  auditEmpty: document.querySelector("#auditEmpty"),
+  auditError: document.querySelector("#auditError"),
+  previousAuditPage: document.querySelector("#previousAuditPage"),
+  nextAuditPage: document.querySelector("#nextAuditPage"),
+  auditPageIndicator: document.querySelector("#auditPageIndicator"),
   filterForm: document.querySelector("#filterForm"),
   searchInput: document.querySelector("#searchInput"),
   shopFilter: document.querySelector("#shopFilter"),
@@ -101,6 +114,15 @@ const elements = {
 
 const SAVED_FILTERS_STORAGE_KEY = "pancakeDataHub.savedFilters.v1";
 const MAX_SAVED_FILTERS = 20;
+const AUDIT_ACTION_LABELS = {
+  "auth.login": "Đăng nhập",
+  "auth.logout": "Đăng xuất",
+  "auth.password_change": "Đổi mật khẩu",
+  "staff.create": "Tạo nhân viên",
+  "staff.update": "Sửa nhân viên",
+  "orders.sync": "Đồng bộ đơn",
+  "orders.export": "Xuất Excel",
+};
 
 const filterElements = {
   query: elements.searchInput,
@@ -320,6 +342,8 @@ function showLogin(message = "") {
   elements.dialogContent.replaceChildren();
   elements.staffList.replaceChildren();
   elements.staffShopOptions.replaceChildren();
+  elements.auditBody.replaceChildren();
+  elements.auditActionFilter.value = "";
   elements.filterForm.reset();
   for (const summaryElement of [
     elements.totalOrders,
@@ -337,6 +361,7 @@ function showLogin(message = "") {
   elements.systemStateText.textContent = "Đang kiểm tra dữ liệu…";
   if (elements.orderDialog.open) elements.orderDialog.close();
   if (elements.passwordDialog.open) elements.passwordDialog.close();
+  if (elements.auditDialog.open) elements.auditDialog.close();
   elements.passwordForm.reset();
   elements.appShell.hidden = true;
   elements.loginShell.hidden = false;
@@ -352,6 +377,7 @@ function showApplication(user) {
   elements.currentUserName.textContent = text(user.display_name, user.username);
   elements.currentUserRole.textContent = user.role === "admin" ? "Quản trị viên" : "Nhân viên";
   elements.manageStaffButton.hidden = user.role !== "admin";
+  elements.auditLogButton.hidden = user.role !== "admin";
   elements.syncNow.hidden = !user.can_sync;
   elements.revenueSummaryCard.hidden = !user.can_view_revenue;
   elements.loginShell.hidden = true;
@@ -657,6 +683,117 @@ async function saveStaff(event) {
       ? "Lưu thay đổi"
       : "Tạo nhân viên";
   }
+}
+
+function auditDetail(item) {
+  const metadata = item.metadata || {};
+  if (item.action === "orders.export") {
+    return `${integerFormatter.format(metadata.order_count || 0)} đơn`;
+  }
+  if (item.action === "orders.sync") {
+    if (item.result === "skipped") return "Đã có lượt đồng bộ khác đang chạy";
+    return [
+      metadata.shops_processed !== undefined
+        ? `${integerFormatter.format(metadata.shops_processed)} shop`
+        : "",
+      metadata.rows_written !== undefined
+        ? `${integerFormatter.format(metadata.rows_written)} dòng cập nhật`
+        : "",
+      metadata.connectors_failed
+        ? `${integerFormatter.format(metadata.connectors_failed)} kết nối lỗi`
+        : "",
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+  if (item.action === "staff.create" || item.action === "staff.update") {
+    const parts = [];
+    if (metadata.shop_count !== undefined) {
+      parts.push(`${integerFormatter.format(metadata.shop_count)} shop`);
+    }
+    if (metadata.password_changed) parts.push("Có đổi mật khẩu");
+    if (metadata.active === false) parts.push("Đã khóa tài khoản");
+    return parts.join(" · ") || "—";
+  }
+  if (item.action === "auth.login" && item.result === "denied") {
+    return metadata.username ? `Tài khoản: ${metadata.username}` : "Sai thông tin đăng nhập";
+  }
+  return item.resource_id ? `${text(item.resource_type, "Đối tượng")}: ${item.resource_id}` : "—";
+}
+
+function auditResultLabel(result) {
+  return {
+    success: "Thành công",
+    denied: "Từ chối",
+    skipped: "Bỏ qua",
+    partial: "Có lỗi một phần",
+  }[result] || text(result);
+}
+
+function renderAuditLog(data) {
+  const rows = data.items.map((item) => {
+    const row = document.createElement("tr");
+    const actor = item.actor_display_name || item.actor_username || "Hệ thống / không xác định";
+    const actorCell = document.createElement("td");
+    actorCell.append(
+      createElement("strong", "", actor),
+      createElement("span", "secondary-text", item.actor_username ? `@${item.actor_username}` : ""),
+    );
+    row.append(
+      createElement("td", "", formatDate(item.created_at)),
+      actorCell,
+      createElement("td", "", AUDIT_ACTION_LABELS[item.action] || item.action),
+      createElement(
+        "td",
+        `audit-result audit-result-${item.result}`,
+        auditResultLabel(item.result),
+      ),
+      createElement("td", "audit-detail", auditDetail(item)),
+    );
+    return row;
+  });
+  elements.auditBody.replaceChildren(...rows);
+  elements.auditEmpty.hidden = rows.length !== 0;
+
+  const selectedAction = elements.auditActionFilter.value;
+  const actionOptions = [createElement("option", "", "Tất cả hoạt động")];
+  actionOptions[0].value = "";
+  for (const action of data.actions) {
+    const option = createElement("option", "", AUDIT_ACTION_LABELS[action] || action);
+    option.value = action;
+    actionOptions.push(option);
+  }
+  elements.auditActionFilter.replaceChildren(...actionOptions);
+  elements.auditActionFilter.value = selectedAction;
+
+  const pagination = data.pagination;
+  state.auditPageNumber = pagination.page_number;
+  state.auditTotalPages = Math.max(pagination.total_pages, 1);
+  elements.auditPageIndicator.textContent = `Trang ${state.auditPageNumber} / ${state.auditTotalPages}`;
+  elements.previousAuditPage.disabled = state.auditPageNumber <= 1;
+  elements.nextAuditPage.disabled = state.auditPageNumber >= state.auditTotalPages;
+}
+
+async function loadAuditLog() {
+  elements.auditError.textContent = "";
+  const params = new URLSearchParams({
+    page_number: String(state.auditPageNumber),
+    page_size: "50",
+  });
+  if (elements.auditActionFilter.value) {
+    params.set("action", elements.auditActionFilter.value);
+  }
+  try {
+    renderAuditLog(await fetchJson(`/api/admin/audit-logs?${params.toString()}`));
+  } catch (error) {
+    elements.auditError.textContent = `Không thể tải nhật ký. ${error.message}`;
+  }
+}
+
+async function openAuditLog() {
+  state.auditPageNumber = 1;
+  elements.auditDialog.showModal();
+  await loadAuditLog();
 }
 
 function addOption(select, value, label) {
@@ -1110,6 +1247,28 @@ elements.clearStaffShops.addEventListener("click", () => {
 elements.closeStaffDialog.addEventListener("click", () => elements.staffDialog.close());
 elements.staffDialog.addEventListener("click", (event) => {
   if (event.target === elements.staffDialog) elements.staffDialog.close();
+});
+elements.auditLogButton.addEventListener("click", openAuditLog);
+elements.closeAuditDialog.addEventListener("click", () => elements.auditDialog.close());
+elements.auditDialog.addEventListener("click", (event) => {
+  if (event.target === elements.auditDialog) elements.auditDialog.close();
+});
+elements.auditActionFilter.addEventListener("change", () => {
+  state.auditPageNumber = 1;
+  loadAuditLog();
+});
+elements.refreshAuditLog.addEventListener("click", loadAuditLog);
+elements.previousAuditPage.addEventListener("click", () => {
+  if (state.auditPageNumber > 1) {
+    state.auditPageNumber -= 1;
+    loadAuditLog();
+  }
+});
+elements.nextAuditPage.addEventListener("click", () => {
+  if (state.auditPageNumber < state.auditTotalPages) {
+    state.auditPageNumber += 1;
+    loadAuditLog();
+  }
 });
 
 elements.shopFilter.addEventListener("change", () => {

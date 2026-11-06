@@ -62,6 +62,24 @@ def test_users_can_change_temporary_password_before_loading_data() -> None:
     assert "if (wasRequired) await loadApplicationData()" in javascript
 
 
+def test_admin_can_filter_and_page_through_audit_log() -> None:
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    for element_id in (
+        'id="auditLogButton"',
+        'id="auditDialog"',
+        'id="auditActionFilter"',
+        'id="auditBody"',
+        'id="previousAuditPage"',
+        'id="nextAuditPage"',
+    ):
+        assert element_id in html
+    assert "/api/admin/audit-logs" in javascript
+    assert "AUDIT_ACTION_LABELS" in javascript
+    assert "user.role !== \"admin\"" in javascript
+
+
 def test_frontend_uses_safe_dom_rendering() -> None:
     javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
     assert ".innerHTML" not in javascript

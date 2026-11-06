@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=15" />
-    <script src="/assets/app.js?v=15" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=16" />
+    <script src="/assets/app.js?v=16" defer></script>
   </head>
   <body>
     <main id="loginShell" class="login-shell" hidden>
@@ -40,6 +40,7 @@
             <span id="currentUserRole">—</span>
           </div>
           <button id="manageStaffButton" class="manage-staff-button" type="button" hidden>Nhân viên</button>
+          <button id="auditLogButton" class="manage-staff-button" type="button" hidden>Nhật ký</button>
           <button id="changePasswordButton" class="logout-button" type="button">Đổi mật khẩu</button>
           <button id="logoutButton" class="logout-button" type="button">Đăng xuất</button>
           <div class="system-state">
@@ -329,6 +330,50 @@
           </div>
           <div id="staffList" class="staff-list"></div>
         </section>
+      </div>
+    </dialog>
+
+    <dialog id="auditDialog" class="audit-dialog" aria-labelledby="auditDialogTitle">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Kiểm soát</p>
+          <h2 id="auditDialogTitle">Nhật ký hoạt động</h2>
+        </div>
+        <button id="closeAuditDialog" class="icon-button" type="button" aria-label="Đóng">×</button>
+      </div>
+      <div class="audit-content">
+        <div class="audit-toolbar">
+          <label>
+            <span>Loại hoạt động</span>
+            <select id="auditActionFilter">
+              <option value="">Tất cả hoạt động</option>
+            </select>
+          </label>
+          <button id="refreshAuditLog" class="secondary-button" type="button">Làm mới</button>
+        </div>
+        <div class="audit-table-wrap">
+          <table class="audit-table">
+            <thead>
+              <tr>
+                <th scope="col">Thời gian</th>
+                <th scope="col">Người thực hiện</th>
+                <th scope="col">Hoạt động</th>
+                <th scope="col">Kết quả</th>
+                <th scope="col">Chi tiết</th>
+              </tr>
+            </thead>
+            <tbody id="auditBody"></tbody>
+          </table>
+          <div id="auditEmpty" class="empty-state" hidden>
+            <strong>Chưa có hoạt động phù hợp</strong>
+          </div>
+        </div>
+        <div id="auditError" class="staff-form-message is-error" role="alert"></div>
+        <nav class="audit-pagination" aria-label="Phân trang nhật ký">
+          <button id="previousAuditPage" class="secondary-button" type="button">← Trang trước</button>
+          <span id="auditPageIndicator">Trang — / —</span>
+          <button id="nextAuditPage" class="secondary-button" type="button">Trang sau →</button>
+        </nav>
       </div>
     </dialog>
 
