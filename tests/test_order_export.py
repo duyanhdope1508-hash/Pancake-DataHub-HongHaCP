@@ -2,13 +2,18 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.order_export import ExportLimitExceeded, _excel_datetime
+from app.order_export import ExportLimitExceeded, _excel_datetime, export_limit_for_role
 
 
 def test_export_limit_error_preserves_counts() -> None:
     error = ExportLimitExceeded(100_001, 100_000)
     assert error.total_orders == 100_001
     assert error.max_orders == 100_000
+
+
+def test_staff_export_is_limited_to_five_hundred_orders() -> None:
+    assert export_limit_for_role("staff") == 500
+    assert export_limit_for_role("admin") == 100_000
 
 
 def test_excel_datetime_removes_timezone_after_local_conversion() -> None:

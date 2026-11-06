@@ -15,6 +15,7 @@ from app.models import CoreOrder, Shop
 from app.search import filtered_orders_statement
 
 EXPORT_MAX_ORDERS = 100_000
+STAFF_EXPORT_MAX_ORDERS = 500
 LOCAL_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 
 
@@ -25,6 +26,10 @@ class ExportLimitExceeded(ValueError):
         super().__init__(
             f"Export contains {total_orders} orders; maximum is {max_orders}"
         )
+
+
+def export_limit_for_role(role: str) -> int:
+    return EXPORT_MAX_ORDERS if role == "admin" else STAFF_EXPORT_MAX_ORDERS
 
 
 def _excel_datetime(value: datetime | None) -> datetime | None:

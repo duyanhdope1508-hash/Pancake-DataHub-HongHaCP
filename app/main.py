@@ -39,7 +39,7 @@ from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.models import AuditLog, User
 from app.order_detail import AmbiguousOrderError, OrderNotFoundError, get_order_detail
-from app.order_export import ExportLimitExceeded, export_orders_xlsx
+from app.order_export import ExportLimitExceeded, export_limit_for_role, export_orders_xlsx
 from app.order_filters import order_filters
 from app.search import search_orders, summarize_orders
 from app.status import database_status
@@ -722,8 +722,10 @@ def export_orders(
     returned: Annotated[bool | None, Query()] = None,
     product: Annotated[str | None, Query(max_length=200)] = None,
 ) -> FileResponse:
+    actor = request.state.current_user
+    export_limit = export_limit_for_role(actor.role)
     with SessionLocal() as session:
-        allowed_shop_ids = authorized_shop_ids(session, request.state.current_user)
+        allowed_shop_ids = authorized_shop_ids(session, actor)
         effective_shop_ids = scoped_shop_filter(shop_id, allowed_shop_ids)
         try:
             output_path, exported_count = export_orders_xlsx(
@@ -743,6 +745,7 @@ def export_orders(
                 sent_to_carrier=sent_to_carrier,
                 returned=returned,
                 product=product,
+                max_orders=export_limit,
             )
         except ExportLimitExceeded as exc:
             raise HTTPException(
@@ -754,7 +757,7 @@ def export_orders(
             ) from exc
     _record_audit(
         request=request,
-        actor_user_id=request.state.current_user.id,
+        actor_user_id=actor.id,
         action="orders.export",
         resource_type="orders",
         result="success",

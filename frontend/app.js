@@ -396,6 +396,10 @@ function showApplication(user) {
   elements.currentUserRole.textContent = user.role === "admin" ? "Quản trị viên" : "Nhân viên";
   elements.manageStaffButton.hidden = user.role !== "admin";
   elements.auditLogButton.hidden = user.role !== "admin";
+  elements.exportExcel.title =
+    user.role === "admin"
+      ? "Xuất các đơn đang khớp bộ lọc"
+      : "Nhân viên được xuất tối đa 500 đơn trong mỗi file";
   elements.syncNow.hidden = !user.can_sync;
   elements.revenueSummaryCard.hidden = !user.can_view_revenue;
   elements.loginShell.hidden = true;
