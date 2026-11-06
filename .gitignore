@@ -3,6 +3,7 @@
 backups/
 secrets/*.json
 secrets/*.tmp
+secrets/cloudflare_tunnel_token
 !secrets/*.example.json
 .venv/
 __pycache__/

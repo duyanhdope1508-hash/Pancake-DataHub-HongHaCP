@@ -8,7 +8,7 @@ x-app-environment: &app-environment
   PANCAKE_PAGE_SIZE: ${PANCAKE_PAGE_SIZE:-100}
   PANCAKE_START_PAGE: ${PANCAKE_START_PAGE:-1}
   PANCAKE_MAX_PAGES: ${PANCAKE_MAX_PAGES:-1}
-  PANCAKE_SYNC_CONCURRENCY: ${PANCAKE_SYNC_CONCURRENCY:-4}
+  PANCAKE_SYNC_CONCURRENCY: ${PANCAKE_SYNC_CONCURRENCY:-2}
   PANCAKE_RESUME_BACKFILL: ${PANCAKE_RESUME_BACKFILL:-false}
   PANCAKE_SYNC_INTERVAL_SECONDS: ${PANCAKE_SYNC_INTERVAL_SECONDS:-300}
 
@@ -37,8 +37,8 @@ services:
       retries: 10
       start_period: 10s
     logging: *container-logging
-    mem_limit: 1536m
-    cpus: 1.5
+    mem_limit: 640m
+    cpus: 1.25
     pids_limit: 256
     stop_grace_period: 1m
 
@@ -70,7 +70,7 @@ services:
     volumes:
       - ./secrets:/app/secrets:ro
     tmpfs:
-      - /tmp:size=256m,mode=1777
+      - /tmp:size=128m,mode=1777
     networks:
       - proxy
       - data
@@ -104,7 +104,7 @@ services:
       - ALL
     read_only: true
     logging: *container-logging
-    mem_limit: 768m
+    mem_limit: 640m
     cpus: 1.0
     pids_limit: 256
     stop_grace_period: 30s
@@ -136,25 +136,22 @@ services:
       - ALL
     read_only: true
     logging: *container-logging
-    mem_limit: 768m
+    mem_limit: 384m
     cpus: 1.0
     pids_limit: 256
     stop_grace_period: 2m
 
-  caddy:
-    image: caddy:2.11.7-alpine
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.7
     restart: unless-stopped
-    environment:
-      DATAHUB_DOMAIN: ${DATAHUB_DOMAIN:?Set DATAHUB_DOMAIN in .env.production}
-      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env.production}
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+    command:
+      - tunnel
+      - --no-autoupdate
+      - run
+      - --token-file
+      - /run/secrets/cloudflare_tunnel_token
+    secrets:
+      - cloudflare_tunnel_token
     networks:
       - proxy
     depends_on:
@@ -162,9 +159,12 @@ services:
         condition: service_healthy
     security_opt:
       - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
     logging: *container-logging
-    mem_limit: 256m
-    cpus: 0.5
+    mem_limit: 128m
+    cpus: 0.25
     pids_limit: 128
     stop_grace_period: 30s
 
@@ -174,6 +174,8 @@ networks:
 
 volumes:
   postgres_data:
-  caddy_data:
-  caddy_config:
+
+secrets:
+  cloudflare_tunnel_token:
+    file: ./secrets/cloudflare_tunnel_token
 

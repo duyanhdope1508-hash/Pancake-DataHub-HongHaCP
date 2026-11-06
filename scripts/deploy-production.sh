@@ -26,7 +26,7 @@ if compose ps --status running --services 2>/dev/null | grep -qx db; then
   fi
 fi
 
-compose pull db caddy
+compose pull db cloudflared
 compose build --pull api
 compose up -d --remove-orphans
 

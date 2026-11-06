@@ -33,7 +33,7 @@ compose() {
 }
 
 restart_application() {
-  compose up -d api worker caddy >/dev/null
+  compose up -d api worker cloudflared >/dev/null
 }
 
 compose up -d db >/dev/null
