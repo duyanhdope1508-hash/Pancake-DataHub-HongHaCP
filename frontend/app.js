@@ -4,6 +4,7 @@ const state = {
   totalPages: 1,
   currentUser: null,
   staffManagement: null,
+  passwordChangeRequired: false,
 };
 
 const elements = {
@@ -17,7 +18,18 @@ const elements = {
   currentUserName: document.querySelector("#currentUserName"),
   currentUserRole: document.querySelector("#currentUserRole"),
   manageStaffButton: document.querySelector("#manageStaffButton"),
+  changePasswordButton: document.querySelector("#changePasswordButton"),
   logoutButton: document.querySelector("#logoutButton"),
+  passwordDialog: document.querySelector("#passwordDialog"),
+  closePasswordDialog: document.querySelector("#closePasswordDialog"),
+  passwordForm: document.querySelector("#passwordForm"),
+  passwordRequiredNotice: document.querySelector("#passwordRequiredNotice"),
+  currentPassword: document.querySelector("#currentPassword"),
+  newPassword: document.querySelector("#newPassword"),
+  confirmNewPassword: document.querySelector("#confirmNewPassword"),
+  passwordFormMessage: document.querySelector("#passwordFormMessage"),
+  cancelPasswordChange: document.querySelector("#cancelPasswordChange"),
+  savePasswordButton: document.querySelector("#savePasswordButton"),
   staffDialog: document.querySelector("#staffDialog"),
   closeStaffDialog: document.querySelector("#closeStaffDialog"),
   staffForm: document.querySelector("#staffForm"),
@@ -303,6 +315,7 @@ async function fetchJson(url) {
 function showLogin(message = "") {
   state.currentUser = null;
   state.staffManagement = null;
+  state.passwordChangeRequired = false;
   elements.ordersBody.replaceChildren();
   elements.dialogContent.replaceChildren();
   elements.staffList.replaceChildren();
@@ -323,6 +336,8 @@ function showLogin(message = "") {
   elements.resultCount.textContent = "Đang tải…";
   elements.systemStateText.textContent = "Đang kiểm tra dữ liệu…";
   if (elements.orderDialog.open) elements.orderDialog.close();
+  if (elements.passwordDialog.open) elements.passwordDialog.close();
+  elements.passwordForm.reset();
   elements.appShell.hidden = true;
   elements.loginShell.hidden = false;
   elements.loginError.textContent = message;
@@ -361,8 +376,11 @@ async function login(event) {
     if (!response.ok) throw new Error(payload.detail || "Không thể đăng nhập.");
     showApplication(payload.user);
     elements.loginPassword.value = "";
-    renderSavedFilters();
-    await Promise.all([loadFilters(), loadSystemStatus(), loadOrders()]);
+    if (payload.user.must_change_password) {
+      openPasswordChange(true);
+      return;
+    }
+    await loadApplicationData();
   } catch (error) {
     showLogin(error.message);
   } finally {
@@ -378,6 +396,74 @@ async function logout() {
   } finally {
     elements.logoutButton.disabled = false;
     showLogin();
+  }
+}
+
+async function loadApplicationData() {
+  renderSavedFilters();
+  await Promise.all([loadFilters(), loadSystemStatus(), loadOrders()]);
+}
+
+function setPasswordMessage(message, isError = false) {
+  elements.passwordFormMessage.textContent = message;
+  elements.passwordFormMessage.classList.toggle("is-error", isError);
+}
+
+function openPasswordChange(required = false) {
+  state.passwordChangeRequired = required;
+  elements.passwordForm.reset();
+  setPasswordMessage("");
+  elements.passwordRequiredNotice.hidden = !required;
+  elements.closePasswordDialog.hidden = required;
+  elements.cancelPasswordChange.hidden = required;
+  elements.passwordDialog.showModal();
+  elements.currentPassword.focus();
+}
+
+function closePasswordChange() {
+  if (state.passwordChangeRequired) return;
+  elements.passwordForm.reset();
+  setPasswordMessage("");
+  elements.passwordDialog.close();
+}
+
+async function saveOwnPassword(event) {
+  event.preventDefault();
+  setPasswordMessage("");
+  if (elements.newPassword.value !== elements.confirmNewPassword.value) {
+    setPasswordMessage("Hai lần nhập mật khẩu mới không khớp.", true);
+    elements.confirmNewPassword.focus();
+    return;
+  }
+
+  const wasRequired = state.passwordChangeRequired;
+  elements.savePasswordButton.disabled = true;
+  elements.savePasswordButton.textContent = "Đang đổi…";
+  try {
+    const response = await fetch("/api/auth/change-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({
+        current_password: elements.currentPassword.value,
+        new_password: elements.newPassword.value,
+      }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) showLogin();
+      throw new Error(payload.detail || `Yêu cầu thất bại (${response.status})`);
+    }
+
+    state.currentUser.must_change_password = false;
+    state.passwordChangeRequired = false;
+    elements.passwordForm.reset();
+    elements.passwordDialog.close();
+    if (wasRequired) await loadApplicationData();
+  } catch (error) {
+    setPasswordMessage(error.message, true);
+  } finally {
+    elements.savePasswordButton.disabled = false;
+    elements.savePasswordButton.textContent = "Đổi mật khẩu";
   }
 }
 
@@ -464,12 +550,22 @@ function renderStaffList() {
       createElement("strong", "", user.display_name),
       createElement("span", "", `@${user.username}`),
     );
+    const statusText = user.is_active
+      ? user.must_change_password
+        ? "Chờ đổi mật khẩu"
+        : "Đang hoạt động"
+      : "Đã khóa";
+    const statusClass = user.is_active
+      ? user.must_change_password
+        ? "is-pending"
+        : "is-active"
+      : "is-locked";
     header.append(
       identity,
       createElement(
         "span",
-        `staff-account-status ${user.is_active ? "is-active" : "is-locked"}`,
-        user.is_active ? "Đang hoạt động" : "Đã khóa",
+        `staff-account-status ${statusClass}`,
+        statusText,
       ),
     );
 
@@ -988,6 +1084,16 @@ elements.filterForm.addEventListener("submit", (event) => {
 
 elements.loginForm.addEventListener("submit", login);
 elements.logoutButton.addEventListener("click", logout);
+elements.changePasswordButton.addEventListener("click", () => openPasswordChange(false));
+elements.passwordForm.addEventListener("submit", saveOwnPassword);
+elements.closePasswordDialog.addEventListener("click", closePasswordChange);
+elements.cancelPasswordChange.addEventListener("click", closePasswordChange);
+elements.passwordDialog.addEventListener("cancel", (event) => {
+  if (state.passwordChangeRequired) event.preventDefault();
+});
+elements.passwordDialog.addEventListener("click", (event) => {
+  if (event.target === elements.passwordDialog) closePasswordChange();
+});
 elements.manageStaffButton.addEventListener("click", openStaffManagement);
 elements.staffForm.addEventListener("submit", saveStaff);
 elements.cancelStaffEdit.addEventListener("click", resetStaffForm);
@@ -1075,8 +1181,11 @@ async function initialize() {
   try {
     const auth = await fetchJson("/api/auth/me");
     showApplication(auth.user);
-    renderSavedFilters();
-    await Promise.all([loadFilters(), loadSystemStatus(), loadOrders()]);
+    if (auth.user.must_change_password) {
+      openPasswordChange(true);
+      return;
+    }
+    await loadApplicationData();
   } catch (error) {
     if (error.status === 401) return;
     showError(`Không thể khởi tạo cổng tra cứu. ${error.message}`);

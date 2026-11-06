@@ -394,6 +394,11 @@ body {
   color: var(--danger);
 }
 
+.staff-account-status.is-pending {
+  background: #f7ecd9;
+  color: var(--warning);
+}
+
 .staff-card-shops {
   margin: 11px 0;
   color: var(--ink);
@@ -409,6 +414,65 @@ body {
 .staff-card-footer .secondary-button {
   padding: 7px 9px;
   font-size: 10px;
+}
+
+.password-dialog {
+  width: min(480px, calc(100% - 32px));
+}
+
+.password-form {
+  display: grid;
+  gap: 15px;
+  padding: 23px 26px 28px;
+}
+
+.password-form label {
+  display: grid;
+  gap: 6px;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.password-form input {
+  min-height: 42px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  outline: none;
+}
+
+.password-form input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(30, 107, 77, 0.1);
+}
+
+.password-form small {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.password-required-notice {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--warning);
+  background: #fff8eb;
+  color: #71450f;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.password-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+.password-form-actions button {
+  min-height: 40px;
 }
 
 @media (max-width: 820px) {

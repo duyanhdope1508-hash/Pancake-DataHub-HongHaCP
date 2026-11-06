@@ -63,6 +63,7 @@ def create_staff(
         username=normalized_username,
         display_name=clean_display_name,
         password_hash=hash_password(password),
+        must_change_password=True,
         role="staff",
         is_active=True,
     )
@@ -98,6 +99,7 @@ def update_staff(
     password_changed = bool(password)
     if password_changed:
         user.password_hash = hash_password(password or "")
+        user.must_change_password = True
     user.display_name = clean_display_name
     user.is_active = is_active
     session.execute(
@@ -149,6 +151,7 @@ def management_snapshot(session: Session) -> dict[str, Any]:
                 "username": user.username,
                 "display_name": user.display_name,
                 "is_active": user.is_active,
+                "must_change_password": user.must_change_password,
                 "shop_ids": access_by_user[user.id],
                 "last_login_at": user.last_login_at,
                 "created_at": user.created_at,

@@ -485,6 +485,15 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261106_015_require_temporary_password_change",
+        (
+            (
+                "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS "
+                "must_change_password BOOLEAN NOT NULL DEFAULT FALSE"
+            ),
+        ),
+    ),
 )
 
 

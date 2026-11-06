@@ -30,6 +30,7 @@ def test_system_status_route_is_registered() -> None:
     assert "/api/auth/login" in paths
     assert "/api/auth/logout" in paths
     assert "/api/auth/me" in paths
+    assert "/api/auth/change-password" in paths
     assert "/api/admin/users" in paths
 
 

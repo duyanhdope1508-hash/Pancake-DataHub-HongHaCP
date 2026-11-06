@@ -44,6 +44,24 @@ def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:
     assert "user.role !== \"admin\"" in javascript
 
 
+def test_users_can_change_temporary_password_before_loading_data() -> None:
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    for element_id in (
+        'id="changePasswordButton"',
+        'id="passwordDialog"',
+        'id="passwordForm"',
+        'id="currentPassword"',
+        'id="newPassword"',
+        'id="confirmNewPassword"',
+    ):
+        assert element_id in html
+    assert "/api/auth/change-password" in javascript
+    assert "auth.user.must_change_password" in javascript
+    assert "if (wasRequired) await loadApplicationData()" in javascript
+
+
 def test_frontend_uses_safe_dom_rendering() -> None:
     javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
     assert ".innerHTML" not in javascript

@@ -1,13 +1,18 @@
 from datetime import UTC, datetime, timedelta
 from unittest.mock import Mock
 
+import pytest
+
 from app.auth import (
+    InvalidCurrentPasswordError,
     authenticate_user_session,
+    change_user_password,
     create_user_session,
     is_public_path,
     revoke_user_session,
 )
 from app.models import User, UserSession
+from app.security import hash_password, verify_password
 
 
 def test_create_session_stores_only_token_hash() -> None:
@@ -99,3 +104,55 @@ def test_only_login_health_root_and_assets_are_public() -> None:
     assert is_public_path("/assets/app.js") is True
     assert is_public_path("/api/auth/me") is False
     assert is_public_path("/api/orders") is False
+
+
+def test_change_password_rehashes_and_revokes_other_sessions() -> None:
+    db = Mock()
+    user = User(
+        id="user-1",
+        username="staff",
+        display_name="Staff",
+        password_hash=hash_password("temporary password"),
+        must_change_password=True,
+        role="staff",
+        is_active=True,
+    )
+    db.get.return_value = user
+
+    result = change_user_password(
+        db,
+        user_id=user.id,
+        current_session_id="current-session",
+        current_password="temporary password",
+        new_password="a different secure password",
+    )
+
+    assert result.must_change_password is False
+    assert verify_password(result.password_hash, "a different secure password") is True
+    db.execute.assert_called_once()
+    db.flush.assert_called_once_with()
+
+
+def test_change_password_rejects_wrong_current_password() -> None:
+    db = Mock()
+    user = User(
+        id="user-1",
+        username="staff",
+        display_name="Staff",
+        password_hash=hash_password("temporary password"),
+        must_change_password=True,
+        role="staff",
+        is_active=True,
+    )
+    db.get.return_value = user
+
+    with pytest.raises(InvalidCurrentPasswordError):
+        change_user_password(
+            db,
+            user_id=user.id,
+            current_session_id="current-session",
+            current_password="wrong password",
+            new_password="a different secure password",
+        )
+
+    db.execute.assert_not_called()

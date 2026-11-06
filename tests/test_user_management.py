@@ -19,6 +19,7 @@ def _staff() -> User:
         username="nhan.vien",
         display_name="Nhân viên",
         password_hash="old-hash",
+        must_change_password=False,
         role="staff",
         is_active=True,
     )
@@ -46,6 +47,7 @@ def test_create_staff_hashes_password_and_assigns_valid_shops() -> None:
 
     assert user.username == "nhan.vien"
     assert user.role == "staff"
+    assert user.must_change_password is True
     assert verify_password(user.password_hash, "a secure temporary password") is True
     assignments = list(session.add_all.call_args.args[0])
     assert {(item.user_id, item.shop_id) for item in assignments} == {
@@ -101,6 +103,7 @@ def test_update_staff_replaces_access_and_revokes_sessions_after_password_change
     )
 
     assert result.display_name == "Nhân viên mới"
+    assert result.must_change_password is True
     assert verify_password(result.password_hash, "a new secure password") is True
     assignment = next(iter(session.add_all.call_args.args[0]))
     assert isinstance(assignment, UserShopAccess)

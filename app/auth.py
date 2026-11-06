@@ -5,10 +5,11 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from app.models import User, UserSession
+from app.security import hash_password, verify_password
 
 SESSION_COOKIE_NAME = "hongha_session"
 
@@ -17,6 +18,14 @@ SESSION_COOKIE_NAME = "hongha_session"
 class AuthenticatedSession:
     user: User
     session: UserSession
+
+
+class InvalidCurrentPasswordError(ValueError):
+    pass
+
+
+class ReusedPasswordError(ValueError):
+    pass
 
 
 def _hash_token(token: str) -> str:
@@ -86,6 +95,37 @@ def revoke_user_session(db: Session, raw_token: str | None) -> None:
     if hmac.compare_digest(user_session.token_hash, _hash_token(raw_token)):
         user_session.revoked_at = datetime.now(UTC)
         db.commit()
+
+
+def change_user_password(
+    db: Session,
+    *,
+    user_id: str,
+    current_session_id: str,
+    current_password: str,
+    new_password: str,
+) -> User:
+    user = db.get(User, user_id)
+    if user is None or not user.is_active or not verify_password(
+        user.password_hash, current_password
+    ):
+        raise InvalidCurrentPasswordError("Mật khẩu hiện tại không đúng.")
+    if current_password == new_password:
+        raise ReusedPasswordError("Mật khẩu mới phải khác mật khẩu hiện tại.")
+
+    user.password_hash = hash_password(new_password)
+    user.must_change_password = False
+    db.execute(
+        update(UserSession)
+        .where(
+            UserSession.user_id == user.id,
+            UserSession.id != current_session_id,
+            UserSession.revoked_at.is_(None),
+        )
+        .values(revoked_at=datetime.now(UTC))
+    )
+    db.flush()
+    return user
 
 
 def is_public_path(path: str) -> bool:

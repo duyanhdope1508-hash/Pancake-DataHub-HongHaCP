@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=14" />
-    <script src="/assets/app.js?v=14" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=15" />
+    <script src="/assets/app.js?v=15" defer></script>
   </head>
   <body>
     <main id="loginShell" class="login-shell" hidden>
@@ -40,6 +40,7 @@
             <span id="currentUserRole">—</span>
           </div>
           <button id="manageStaffButton" class="manage-staff-button" type="button" hidden>Nhân viên</button>
+          <button id="changePasswordButton" class="logout-button" type="button">Đổi mật khẩu</button>
           <button id="logoutButton" class="logout-button" type="button">Đăng xuất</button>
           <div class="system-state">
             <span class="state-dot" aria-hidden="true"></span>
@@ -329,6 +330,39 @@
           <div id="staffList" class="staff-list"></div>
         </section>
       </div>
+    </dialog>
+
+    <dialog id="passwordDialog" class="password-dialog" aria-labelledby="passwordDialogTitle">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Bảo mật tài khoản</p>
+          <h2 id="passwordDialogTitle">Đổi mật khẩu</h2>
+        </div>
+        <button id="closePasswordDialog" class="icon-button" type="button" aria-label="Đóng">×</button>
+      </div>
+      <form id="passwordForm" class="password-form">
+        <p id="passwordRequiredNotice" class="password-required-notice" hidden>
+          Đây là mật khẩu tạm thời. Bạn cần đặt mật khẩu riêng trước khi xem dữ liệu.
+        </p>
+        <label>
+          <span>Mật khẩu hiện tại</span>
+          <input id="currentPassword" type="password" required maxlength="256" autocomplete="current-password" />
+        </label>
+        <label>
+          <span>Mật khẩu mới</span>
+          <input id="newPassword" type="password" required minlength="12" maxlength="256" autocomplete="new-password" />
+          <small>Ít nhất 12 ký tự và không trùng mật khẩu hiện tại.</small>
+        </label>
+        <label>
+          <span>Nhập lại mật khẩu mới</span>
+          <input id="confirmNewPassword" type="password" required minlength="12" maxlength="256" autocomplete="new-password" />
+        </label>
+        <div id="passwordFormMessage" class="staff-form-message" role="status" aria-live="polite"></div>
+        <div class="password-form-actions">
+          <button id="cancelPasswordChange" class="secondary-button" type="button">Hủy</button>
+          <button id="savePasswordButton" class="primary-button" type="submit">Đổi mật khẩu</button>
+        </div>
+      </form>
     </dialog>
 
     <dialog id="orderDialog" aria-labelledby="dialogTitle">

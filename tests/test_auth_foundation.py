@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -19,6 +20,7 @@ def test_auth_models_have_required_security_fields() -> None:
         "username",
         "display_name",
         "password_hash",
+        "must_change_password",
         "role",
         "is_active",
         "last_login_at",
@@ -99,3 +101,10 @@ def test_create_admin_rejects_duplicate_username() -> None:
 
     session.add.assert_not_called()
     session.commit.assert_not_called()
+
+
+def test_migration_adds_temporary_password_flag_safely() -> None:
+    source = Path("app/migrations.py").read_text(encoding="utf-8")
+
+    assert "20261106_015_require_temporary_password_change" in source
+    assert "must_change_password BOOLEAN NOT NULL DEFAULT FALSE" in source

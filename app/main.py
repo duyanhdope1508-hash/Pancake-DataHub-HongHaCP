@@ -15,7 +15,10 @@ from starlette.background import BackgroundTask
 
 from app.auth import (
     SESSION_COOKIE_NAME,
+    InvalidCurrentPasswordError,
+    ReusedPasswordError,
     authenticate_user_session,
+    change_user_password,
     create_user_session,
     is_public_path,
     revoke_user_session,
@@ -69,6 +72,11 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=256)
 
 
+class ChangePasswordRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=256)
+    new_password: str = Field(min_length=12, max_length=256)
+
+
 class CreateStaffRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     display_name: str = Field(min_length=1, max_length=255)
@@ -89,6 +97,7 @@ def _safe_user(user: User) -> dict:
         "username": user.username,
         "display_name": user.display_name,
         "role": user.role,
+        "must_change_password": user.must_change_password,
         "can_sync": user.role == "admin",
         "can_view_revenue": can_view_revenue(user),
     }
@@ -129,6 +138,20 @@ async def security_headers(request: Request, call_next):
             return _add_security_headers(response)
         request.state.current_user = authenticated.user
         request.state.auth_session_id = authenticated.session.id
+        if authenticated.user.must_change_password and request.url.path not in {
+            "/api/auth/me",
+            "/api/auth/logout",
+            "/api/auth/change-password",
+        }:
+            return _add_security_headers(
+                JSONResponse(
+                    status_code=403,
+                    content={
+                        "detail": "Bạn phải đổi mật khẩu tạm thời trước khi tiếp tục.",
+                        "code": "password_change_required",
+                    },
+                )
+            )
 
     response = await call_next(request)
     return _add_security_headers(response)
@@ -235,6 +258,35 @@ def logout(request: Request, response: Response) -> dict[str, str]:
         session.commit()
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
     return {"status": "logged_out"}
+
+
+@app.post("/api/auth/change-password")
+def change_password(request: Request, payload: ChangePasswordRequest) -> dict[str, str]:
+    actor = request.state.current_user
+    with SessionLocal() as session:
+        try:
+            user = change_user_password(
+                session,
+                user_id=actor.id,
+                current_session_id=request.state.auth_session_id,
+                current_password=payload.current_password,
+                new_password=payload.new_password,
+            )
+        except (InvalidCurrentPasswordError, ReusedPasswordError) as exc:
+            session.rollback()
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        session.add(
+            AuditLog(
+                actor_user_id=user.id,
+                action="auth.password_change",
+                resource_type="user",
+                resource_id=user.id,
+                result="success",
+                metadata_json={},
+            )
+        )
+        session.commit()
+    return {"status": "password_changed"}
 
 
 def _staff_error_response(exc: Exception) -> HTTPException:
