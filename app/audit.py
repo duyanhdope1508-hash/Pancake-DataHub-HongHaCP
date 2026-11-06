@@ -1,9 +1,60 @@
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session, aliased
 
 from app.models import AuditLog, User
+
+
+def add_audit_event(
+    session: Session,
+    *,
+    actor_user_id: str | None,
+    action: str,
+    resource_type: str | None,
+    resource_id: str | None,
+    result: str,
+    metadata: dict,
+    ip_address: str | None,
+    user_agent: str | None,
+    deduplicate_seconds: int | None = None,
+    now: datetime | None = None,
+) -> AuditLog | None:
+    current_time = now or datetime.now(UTC)
+    if deduplicate_seconds is not None:
+        if deduplicate_seconds < 1 or not actor_user_id or not resource_id:
+            raise ValueError("Deduplicated audit events require actor, resource, and interval.")
+        dedupe_key = f"{actor_user_id}:{action}:{resource_id}"
+        session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:dedupe_key))"),
+            {"dedupe_key": dedupe_key},
+        )
+        recent_event_id = session.scalar(
+            select(AuditLog.id).where(
+                AuditLog.actor_user_id == actor_user_id,
+                AuditLog.action == action,
+                AuditLog.resource_id == resource_id,
+                AuditLog.created_at >= current_time - timedelta(seconds=deduplicate_seconds),
+            ).limit(1)
+        )
+        if recent_event_id is not None:
+            return None
+
+    event = AuditLog(
+        actor_user_id=actor_user_id,
+        action=action,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        result=result,
+        metadata_json=metadata,
+        ip_address=ip_address,
+        user_agent=user_agent,
+        created_at=current_time,
+    )
+    session.add(event)
+    session.flush()
+    return event
 
 
 def list_audit_logs(

@@ -15,7 +15,7 @@ from sqlalchemy import select, text
 from starlette.background import BackgroundTask
 
 from app.abuse import QuotaDecision, consume_quota
-from app.audit import list_audit_logs
+from app.audit import add_audit_event, list_audit_logs
 from app.auth import (
     CSRF_COOKIE_NAME,
     SESSION_COOKIE_NAME,
@@ -149,22 +149,24 @@ def _record_audit(
     result: str,
     metadata: dict,
     resource_id: str | None = None,
-) -> None:
+    deduplicate_seconds: int | None = None,
+) -> bool:
     ip_address, user_agent = _audit_client(request)
     with SessionLocal() as session:
-        session.add(
-            AuditLog(
-                actor_user_id=actor_user_id,
-                action=action,
-                resource_type=resource_type,
-                resource_id=resource_id,
-                result=result,
-                metadata_json=metadata,
-                ip_address=ip_address,
-                user_agent=user_agent,
-            )
+        event = add_audit_event(
+            session,
+            actor_user_id=actor_user_id,
+            action=action,
+            resource_type=resource_type,
+            resource_id=resource_id,
+            result=result,
+            metadata=metadata,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            deduplicate_seconds=deduplicate_seconds,
         )
         session.commit()
+        return event is not None
 
 
 def _audit_client(request: Request) -> tuple[str | None, str | None]:
@@ -983,6 +985,7 @@ def order_detail(
         resource_id=f"{detail['shop_id']}:{detail['order_id']}",
         result="success",
         metadata={"shop_id": detail["shop_id"]},
+        deduplicate_seconds=get_settings().audit_detail_dedup_seconds,
     )
     return detail
 

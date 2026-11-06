@@ -551,6 +551,12 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261106_020_index_audit_created_at",
+        (
+            "CREATE INDEX IF NOT EXISTS ix_audit_logs_created_at ON audit_logs (created_at)",
+        ),
+    ),
 )
 
 

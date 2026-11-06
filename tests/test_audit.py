@@ -1,8 +1,57 @@
 from datetime import UTC, datetime
 from unittest.mock import Mock
 
-from app.audit import list_audit_logs
+from app.audit import add_audit_event, list_audit_logs
 from app.models import AuditLog
+
+
+def test_order_detail_audit_is_deduplicated_within_window() -> None:
+    session = Mock()
+    session.scalar.return_value = "existing-event"
+    now = datetime(2026, 11, 6, 8, 0, tzinfo=UTC)
+
+    event = add_audit_event(
+        session,
+        actor_user_id="staff-1",
+        action="orders.view_detail",
+        resource_type="order",
+        resource_id="shop-1:order-1",
+        result="success",
+        metadata={"shop_id": "shop-1"},
+        ip_address="192.0.2.25",
+        user_agent="Browser",
+        deduplicate_seconds=600,
+        now=now,
+    )
+
+    assert event is None
+    session.add.assert_not_called()
+    session.execute.assert_called_once()
+
+
+def test_order_detail_audit_is_recorded_after_dedup_window() -> None:
+    session = Mock()
+    session.scalar.return_value = None
+    now = datetime(2026, 11, 6, 8, 0, tzinfo=UTC)
+
+    event = add_audit_event(
+        session,
+        actor_user_id="staff-1",
+        action="orders.view_detail",
+        resource_type="order",
+        resource_id="shop-1:order-1",
+        result="success",
+        metadata={"shop_id": "shop-1"},
+        ip_address="192.0.2.25",
+        user_agent="Browser",
+        deduplicate_seconds=600,
+        now=now,
+    )
+
+    assert event is not None
+    assert event.created_at == now
+    session.add.assert_called_once_with(event)
+    session.flush.assert_called_once_with()
 
 
 def test_audit_log_listing_is_paginated_and_safe() -> None:

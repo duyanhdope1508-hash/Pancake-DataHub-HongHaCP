@@ -149,3 +149,4 @@ def test_migration_adds_temporary_password_flag_safely() -> None:
     assert "20261106_017_add_session_csrf_token" in source
     assert "20261106_018_add_audit_user_agent" in source
     assert "20261106_019_add_usage_quotas" in source
+    assert "20261106_020_index_audit_created_at" in source
