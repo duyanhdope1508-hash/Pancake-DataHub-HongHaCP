@@ -9,6 +9,11 @@ from app.main import app
 from app.models import User
 
 
+@pytest.fixture(autouse=True)
+def disable_audit_writes(monkeypatch) -> None:
+    monkeypatch.setattr(main, "_record_audit", Mock())
+
+
 def _request_for(role: str) -> SimpleNamespace:
     user = User(
         id=f"{role}-1",
@@ -32,6 +37,7 @@ def test_system_status_route_is_registered() -> None:
     assert "/api/auth/me" in paths
     assert "/api/auth/change-password" in paths
     assert "/api/admin/users" in paths
+    assert "/api/admin/audit-logs" in paths
 
 
 @pytest.mark.asyncio

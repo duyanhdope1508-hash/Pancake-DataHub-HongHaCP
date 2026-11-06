@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from starlette.background import BackgroundTask
 
+from app.audit import list_audit_logs
 from app.auth import (
     SESSION_COOKIE_NAME,
     InvalidCurrentPasswordError,
@@ -111,6 +112,27 @@ def _add_security_headers(response: Response) -> Response:
         "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
     )
     return response
+
+
+def _record_audit(
+    *,
+    actor_user_id: str,
+    action: str,
+    resource_type: str,
+    result: str,
+    metadata: dict,
+) -> None:
+    with SessionLocal() as session:
+        session.add(
+            AuditLog(
+                actor_user_id=actor_user_id,
+                action=action,
+                resource_type=resource_type,
+                result=result,
+                metadata_json=metadata,
+            )
+        )
+        session.commit()
 
 
 @lru_cache(maxsize=128)
@@ -306,6 +328,23 @@ def admin_users(request: Request) -> dict:
         return management_snapshot(session)
 
 
+@app.get("/api/admin/audit-logs")
+def admin_audit_logs(
+    request: Request,
+    page_number: int = Query(default=1, ge=1),
+    page_size: int = Query(default=50, ge=1, le=100),
+    action: str | None = Query(default=None, max_length=128),
+) -> dict:
+    require_admin(request.state.current_user)
+    with SessionLocal() as session:
+        return list_audit_logs(
+            session,
+            page_number=page_number,
+            page_size=page_size,
+            action=action,
+        )
+
+
 @app.post("/api/admin/users", status_code=201)
 def admin_create_staff(request: Request, payload: CreateStaffRequest) -> dict:
     actor = request.state.current_user
@@ -384,9 +423,17 @@ def system_status(request: Request) -> dict:
 
 @app.post("/api/sync")
 async def sync_now(request: Request) -> dict:
-    require_admin(request.state.current_user)
+    actor = request.state.current_user
+    require_admin(actor)
     result = await run_cycle(get_settings())
     if result["status"] == "skipped":
+        _record_audit(
+            actor_user_id=actor.id,
+            action="orders.sync",
+            resource_type="sync",
+            result="skipped",
+            metadata={"reason": result.get("reason", "unknown")},
+        )
         raise HTTPException(
             status_code=409,
             detail="Đang có một lượt đồng bộ khác chạy. Hãy chờ lượt đó hoàn tất.",
@@ -395,6 +442,18 @@ async def sync_now(request: Request) -> dict:
     sync_result = result["sync"]
     transform_result = result["transform"]
     _cached_order_filters.cache_clear()
+    _record_audit(
+        actor_user_id=actor.id,
+        action="orders.sync",
+        resource_type="sync",
+        result="success" if sync_result["success"] else "partial",
+        metadata={
+            "shops_processed": sync_result["shops_processed"],
+            "connectors_failed": sync_result["connectors_failed"],
+            "rows_written": sync_result["rows_written"],
+            "orders_transformed": transform_result["orders_transformed"],
+        },
+    )
     return {
         "status": "completed" if sync_result["success"] else "completed_with_errors",
         "success": sync_result["success"],
@@ -539,7 +598,7 @@ def export_orders(
         allowed_shop_ids = authorized_shop_ids(session, request.state.current_user)
         effective_shop_ids = scoped_shop_filter(shop_id, allowed_shop_ids)
         try:
-            output_path, _ = export_orders_xlsx(
+            output_path, exported_count = export_orders_xlsx(
                 session,
                 query=q,
                 shop_id=effective_shop_ids,
@@ -565,6 +624,13 @@ def export_orders(
                     f"{exc.max_orders:,} đơn trước khi xuất Excel."
                 ),
             ) from exc
+    _record_audit(
+        actor_user_id=request.state.current_user.id,
+        action="orders.export",
+        resource_type="orders",
+        result="success",
+        metadata={"order_count": exported_count},
+    )
 
     filename = f"pancake-orders-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
     return FileResponse(
