@@ -16,6 +16,11 @@ def test_sync_defaults_to_one_page() -> None:
     assert settings.auth_login_max_failures == 5
     assert settings.auth_login_window_seconds == 900
     assert settings.auth_login_lock_seconds == 900
+    assert settings.auth_staff_max_sessions == 2
+    assert settings.staff_order_rows_per_hour == 2_000
+    assert settings.staff_order_details_per_hour == 120
+    assert settings.staff_exports_per_hour == 5
+    assert settings.staff_export_rows_per_day == 2_000
 
 
 def test_sync_page_limit_must_be_positive() -> None:

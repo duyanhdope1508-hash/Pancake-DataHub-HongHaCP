@@ -113,6 +113,27 @@ class LoginThrottle(Base):
     )
 
 
+class UsageQuota(Base):
+    __tablename__ = "auth_usage_quotas"
+    __table_args__ = (
+        Index("ix_auth_usage_quotas_user_updated", "user_id", "updated_at"),
+    )
+
+    key_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("auth_users.id", ondelete="CASCADE"), nullable=False
+    )
+    action: Mapped[str] = mapped_column(String(128), nullable=False)
+    window_started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_denied_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+    )
+
+
 class AuditLog(Base):
     __tablename__ = "audit_logs"
     __table_args__ = (

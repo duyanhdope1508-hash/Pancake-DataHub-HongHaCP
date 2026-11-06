@@ -66,6 +66,9 @@ def export_orders_xlsx(
     returned: bool | None = None,
     product: str | None = None,
     max_orders: int = EXPORT_MAX_ORDERS,
+    trace_id: str | None = None,
+    exported_by: str | None = None,
+    exported_ip: str | None = None,
 ) -> tuple[Path, int]:
     statement = filtered_orders_statement(
         query=query,
@@ -116,6 +119,10 @@ def export_orders_xlsx(
                 "company": "Hồng Hà",
             }
         )
+        if trace_id:
+            workbook.set_custom_property("Trace ID", trace_id)
+        if exported_by:
+            workbook.set_custom_property("Exported By", exported_by)
         worksheet = workbook.add_worksheet("Đơn hàng")
         worksheet.hide_gridlines(2)
 
@@ -177,6 +184,20 @@ def export_orders_xlsx(
             f"Xuất từ Pancake Data Hub lúc {generated_at} · {total_orders:,} đơn",
             context_format,
         )
+        if trace_id:
+            trace_parts = [f"Mã truy vết: {trace_id}"]
+            if exported_by:
+                trace_parts.append(f"Xuất bởi: {exported_by}")
+            if exported_ip:
+                trace_parts.append(f"IP: {exported_ip}")
+            worksheet.merge_range(
+                2,
+                0,
+                2,
+                last_column,
+                " · ".join(trace_parts),
+                context_format,
+            )
         worksheet.write_row(3, 0, headers, header_format)
         worksheet.set_row(3, 28)
         worksheet.freeze_panes(4, 1)

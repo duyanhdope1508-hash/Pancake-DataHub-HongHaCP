@@ -127,6 +127,7 @@ const AUDIT_ACTION_LABELS = {
   "orders.sync": "Đồng bộ đơn",
   "orders.export": "Xuất Excel",
   "orders.view_detail": "Xem chi tiết đơn",
+  "security.rate_limit": "Chặn lấy dữ liệu hàng loạt",
 };
 
 const filterElements = {
@@ -399,7 +400,7 @@ function showApplication(user) {
   elements.exportExcel.title =
     user.role === "admin"
       ? "Xuất các đơn đang khớp bộ lọc"
-      : "Nhân viên được xuất tối đa 500 đơn trong mỗi file";
+      : "Nhân viên: tối đa 500 đơn/file, 5 lần/giờ và 2.000 đơn/24 giờ";
   elements.syncNow.hidden = !user.can_sync;
   elements.revenueSummaryCard.hidden = !user.can_view_revenue;
   elements.loginShell.hidden = true;
@@ -781,6 +782,9 @@ function auditDetail(item) {
   }
   if (item.action === "auth.login" && item.result === "denied") {
     return metadata.username ? `Tài khoản: ${metadata.username}` : "Sai thông tin đăng nhập";
+  }
+  if (item.action === "security.rate_limit") {
+    return `Đã dùng ${integerFormatter.format(metadata.used || 0)} / ${integerFormatter.format(metadata.limit || 0)} · ${metadata.quota || "Hạn mức bảo vệ"}`;
   }
   return item.resource_id ? `${text(item.resource_type, "Đối tượng")}: ${item.resource_id}` : "—";
 }

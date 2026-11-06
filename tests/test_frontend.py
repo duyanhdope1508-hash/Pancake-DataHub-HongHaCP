@@ -21,7 +21,7 @@ def test_frontend_requires_login_before_loading_data() -> None:
     assert 'id="revenueSummaryCard"' in html
     assert "user.can_sync" in javascript
     assert "user.can_view_revenue" in javascript
-    assert "Nhân viên được xuất tối đa 500 đơn" in javascript
+    assert "tối đa 500 đơn/file, 5 lần/giờ và 2.000 đơn/24 giờ" in javascript
 
 
 def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:

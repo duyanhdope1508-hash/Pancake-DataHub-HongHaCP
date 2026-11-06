@@ -529,6 +529,28 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent VARCHAR(512)",
         ),
     ),
+    (
+        "20261106_019_add_usage_quotas",
+        (
+            """
+            CREATE TABLE IF NOT EXISTS auth_usage_quotas (
+                key_hash VARCHAR(64) PRIMARY KEY,
+                user_id VARCHAR(36) NOT NULL,
+                action VARCHAR(128) NOT NULL,
+                window_started_at TIMESTAMPTZ NOT NULL,
+                usage_count INTEGER NOT NULL DEFAULT 0,
+                last_denied_at TIMESTAMPTZ,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                CONSTRAINT fk_auth_usage_quotas_user
+                    FOREIGN KEY (user_id) REFERENCES auth_users (id) ON DELETE CASCADE
+            )
+            """,
+            (
+                "CREATE INDEX IF NOT EXISTS ix_auth_usage_quotas_user_updated "
+                "ON auth_usage_quotas (user_id, updated_at)"
+            ),
+        ),
+    ),
 )
 
 

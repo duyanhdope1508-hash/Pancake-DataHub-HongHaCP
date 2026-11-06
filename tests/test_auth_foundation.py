@@ -5,7 +5,14 @@ import pytest
 from sqlalchemy import CheckConstraint
 
 from app.create_admin import create_admin
-from app.models import AuditLog, LoginThrottle, User, UserSession, UserShopAccess
+from app.models import (
+    AuditLog,
+    LoginThrottle,
+    UsageQuota,
+    User,
+    UserSession,
+    UserShopAccess,
+)
 from app.security import (
     generate_temporary_password,
     hash_password,
@@ -49,6 +56,9 @@ def test_auth_models_have_required_security_fields() -> None:
     )
     assert {"key_hash", "failure_count", "blocked_until", "updated_at"}.issubset(
         LoginThrottle.__table__.columns.keys()
+    )
+    assert {"key_hash", "user_id", "action", "usage_count", "last_denied_at"}.issubset(
+        UsageQuota.__table__.columns.keys()
     )
 
 
@@ -138,3 +148,4 @@ def test_migration_adds_temporary_password_flag_safely() -> None:
     assert "20261106_016_add_login_throttling" in source
     assert "20261106_017_add_session_csrf_token" in source
     assert "20261106_018_add_audit_user_agent" in source
+    assert "20261106_019_add_usage_quotas" in source

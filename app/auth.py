@@ -120,6 +120,39 @@ def verify_csrf_token(user_session: UserSession, raw_token: str | None) -> bool:
     return hmac.compare_digest(user_session.csrf_token_hash, _hash_token(raw_token))
 
 
+def enforce_active_session_limit(
+    db: Session,
+    *,
+    user_id: str,
+    current_session_id: str,
+    max_sessions: int,
+) -> int:
+    if max_sessions < 1:
+        raise ValueError("Maximum active sessions must be positive.")
+    now = datetime.now(UTC)
+    active_sessions = list(
+        db.scalars(
+            select(UserSession)
+            .where(
+                UserSession.user_id == user_id,
+                UserSession.revoked_at.is_(None),
+                UserSession.expires_at > now,
+            )
+            .order_by(
+                (UserSession.id == current_session_id).desc(),
+                UserSession.created_at.desc(),
+            )
+        ).all()
+    )
+    revoked = 0
+    for user_session in active_sessions[max_sessions:]:
+        user_session.revoked_at = now
+        revoked += 1
+    if revoked:
+        db.flush()
+    return revoked
+
+
 def authenticate_user_session(
     db: Session,
     raw_token: str | None,

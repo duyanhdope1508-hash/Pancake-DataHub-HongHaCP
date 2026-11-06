@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     auth_login_max_failures: int = Field(default=5, ge=3, le=20)
     auth_login_window_seconds: int = Field(default=900, ge=60, le=86_400)
     auth_login_lock_seconds: int = Field(default=900, ge=60, le=86_400)
+    auth_staff_max_sessions: int = Field(default=2, ge=1, le=10)
+    staff_order_rows_per_hour: int = Field(default=2_000, ge=100, le=100_000)
+    staff_order_details_per_hour: int = Field(default=120, ge=10, le=10_000)
+    admin_order_rows_per_hour: int = Field(default=20_000, ge=1_000, le=1_000_000)
+    admin_order_details_per_hour: int = Field(default=1_200, ge=100, le=100_000)
+    staff_exports_per_hour: int = Field(default=5, ge=1, le=100)
+    staff_export_rows_per_day: int = Field(default=2_000, ge=500, le=100_000)
 
     @property
     def shop_allowlist(self) -> set[str]:

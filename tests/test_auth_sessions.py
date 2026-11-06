@@ -9,6 +9,7 @@ from app.auth import (
     change_user_password,
     clear_login_failures,
     create_user_session,
+    enforce_active_session_limit,
     is_public_path,
     login_retry_after,
     login_throttle_key,
@@ -36,6 +37,37 @@ def test_create_session_stores_only_token_hash() -> None:
     assert verify_csrf_token(user_session, "tampered") is False
     assert user_session.expires_at > user_session.created_at
     db.add.assert_called_once_with(user_session)
+    db.flush.assert_called_once_with()
+
+
+def test_staff_session_limit_revokes_oldest_sessions() -> None:
+    now = datetime.now(UTC)
+    sessions = [
+        UserSession(
+            id=session_id,
+            token_hash=str(index) * 64,
+            csrf_token_hash=str(index) * 64,
+            user_id="staff-1",
+            created_at=now - timedelta(minutes=index),
+            last_seen_at=now,
+            expires_at=now + timedelta(hours=1),
+        )
+        for index, session_id in enumerate(("current", "recent", "old"), start=1)
+    ]
+    db = Mock()
+    db.scalars.return_value.all.return_value = sessions
+
+    revoked = enforce_active_session_limit(
+        db,
+        user_id="staff-1",
+        current_session_id="current",
+        max_sessions=2,
+    )
+
+    assert revoked == 1
+    assert sessions[0].revoked_at is None
+    assert sessions[1].revoked_at is None
+    assert sessions[2].revoked_at is not None
     db.flush.assert_called_once_with()
 
 

@@ -65,6 +65,29 @@ def test_audit_client_uses_server_observed_ip_and_bounds_user_agent() -> None:
     assert len(user_agent) == 512
 
 
+def test_staff_read_quota_counts_requested_order_rows() -> None:
+    user = User(
+        id="staff-1",
+        username="staff",
+        display_name="Staff",
+        password_hash="hash",
+        role="staff",
+        is_active=True,
+    )
+    request = SimpleNamespace(
+        method="GET",
+        url=SimpleNamespace(path="/api/orders"),
+        query_params={"page_size": "100"},
+    )
+
+    assert main._read_quota_policy(request, user) == (
+        "orders.list.rows",
+        100,
+        2_000,
+        3_600,
+    )
+
+
 @pytest.mark.asyncio
 async def test_manual_sync_returns_safe_summary(monkeypatch) -> None:
     async def fake_run_cycle(_settings) -> dict:

@@ -1,3 +1,4 @@
+import secrets
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -13,6 +14,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from starlette.background import BackgroundTask
 
+from app.abuse import QuotaDecision, consume_quota
 from app.audit import list_audit_logs
 from app.auth import (
     CSRF_COOKIE_NAME,
@@ -23,6 +25,7 @@ from app.auth import (
     change_user_password,
     clear_login_failures,
     create_user_session,
+    enforce_active_session_limit,
     is_public_path,
     login_retry_after,
     record_login_failure,
@@ -172,6 +175,78 @@ def _audit_client(request: Request) -> tuple[str | None, str | None]:
     return ip_address, user_agent
 
 
+def _read_quota_policy(
+    request: Request,
+    user: User,
+) -> tuple[str, int, int, int] | None:
+    if request.method != "GET":
+        return None
+    settings = get_settings()
+    path = request.url.path
+    if path == "/api/orders":
+        try:
+            requested_rows = int(request.query_params.get("page_size", "20"))
+        except ValueError:
+            requested_rows = 20
+        amount = min(max(requested_rows, 1), 100)
+        limit = (
+            settings.admin_order_rows_per_hour
+            if user.role == "admin"
+            else settings.staff_order_rows_per_hour
+        )
+        return "orders.list.rows", amount, limit, 3_600
+    if path.startswith("/api/orders/") and path not in {
+        "/api/orders/export",
+        "/api/orders/summary",
+    }:
+        limit = (
+            settings.admin_order_details_per_hour
+            if user.role == "admin"
+            else settings.staff_order_details_per_hour
+        )
+        return "orders.view_detail", 1, limit, 3_600
+    return None
+
+
+def _rate_limit_response(decision: QuotaDecision) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={
+            "detail": (
+                "Bạn đã thao tác quá nhanh hoặc xem quá nhiều dữ liệu. "
+                "Hãy thử lại sau."
+            ),
+            "code": "usage_limit_exceeded",
+            "retry_after": decision.retry_after,
+        },
+        headers={"Retry-After": str(decision.retry_after)},
+    )
+
+
+def _record_quota_denial(
+    request: Request,
+    *,
+    actor: User,
+    quota: str,
+    decision: QuotaDecision,
+) -> None:
+    if not decision.should_log_denial:
+        return
+    _record_audit(
+        request=request,
+        actor_user_id=actor.id,
+        action="security.rate_limit",
+        resource_type="api",
+        result="denied",
+        metadata={
+            "quota": quota,
+            "used": decision.used,
+            "limit": decision.limit,
+            "retry_after": decision.retry_after,
+        },
+    )
+
+
 @lru_cache(maxsize=128)
 def _cached_order_filters(
     time_bucket: int,
@@ -192,8 +267,43 @@ async def security_headers(request: Request, call_next):
 
     if request.url.path.startswith("/api/") and not is_public_path(request.url.path):
         raw_token = request.cookies.get(SESSION_COOKIE_NAME)
+        rate_limited_response: JSONResponse | None = None
         with SessionLocal() as session:
             authenticated = authenticate_user_session(session, raw_token)
+            if authenticated is not None:
+                policy = _read_quota_policy(request, authenticated.user)
+                if policy is not None:
+                    action, amount, limit, window_seconds = policy
+                    decision = consume_quota(
+                        session,
+                        user_id=authenticated.user.id,
+                        action=action,
+                        amount=amount,
+                        limit=limit,
+                        window_seconds=window_seconds,
+                    )
+                    if not decision.allowed:
+                        if decision.should_log_denial:
+                            ip_address, user_agent = _audit_client(request)
+                            session.add(
+                                AuditLog(
+                                    actor_user_id=authenticated.user.id,
+                                    action="security.rate_limit",
+                                    resource_type="api",
+                                    resource_id=request.url.path,
+                                    result="denied",
+                                    metadata_json={
+                                        "quota": action,
+                                        "used": decision.used,
+                                        "limit": decision.limit,
+                                        "retry_after": decision.retry_after,
+                                    },
+                                    ip_address=ip_address,
+                                    user_agent=user_agent,
+                                )
+                            )
+                        rate_limited_response = _rate_limit_response(decision)
+                    session.commit()
         if authenticated is None:
             response = JSONResponse(
                 status_code=401,
@@ -202,6 +312,8 @@ async def security_headers(request: Request, call_next):
             response.delete_cookie(SESSION_COOKIE_NAME, path="/")
             response.delete_cookie(CSRF_COOKIE_NAME, path="/")
             return secure(response)
+        if rate_limited_response is not None:
+            return secure(rate_limited_response)
         request.state.current_user = authenticated.user
         request.state.auth_session_id = authenticated.session.id
         if request.method in {"POST", "PUT", "PATCH", "DELETE"} and not verify_csrf_token(
@@ -319,6 +431,13 @@ def login(request: Request, payload: LoginRequest, response: Response) -> dict:
             user_id=user.id,
             session_hours=settings.auth_session_hours,
         )
+        if user.role == "staff":
+            enforce_active_session_limit(
+                session,
+                user_id=user.id,
+                current_session_id=user_session.id,
+                max_sessions=settings.auth_staff_max_sessions,
+            )
         session.add(
             AuditLog(
                 actor_user_id=user.id,
@@ -723,7 +842,10 @@ def export_orders(
     product: Annotated[str | None, Query(max_length=200)] = None,
 ) -> FileResponse:
     actor = request.state.current_user
+    settings = get_settings()
     export_limit = export_limit_for_role(actor.role)
+    trace_id = secrets.token_hex(6).upper()
+    ip_address, _user_agent = _audit_client(request)
     with SessionLocal() as session:
         allowed_shop_ids = authorized_shop_ids(session, actor)
         effective_shop_ids = scoped_shop_filter(shop_id, allowed_shop_ids)
@@ -746,6 +868,9 @@ def export_orders(
                 returned=returned,
                 product=product,
                 max_orders=export_limit,
+                trace_id=trace_id,
+                exported_by=f"@{actor.username}",
+                exported_ip=ip_address,
             )
         except ExportLimitExceeded as exc:
             raise HTTPException(
@@ -755,13 +880,64 @@ def export_orders(
                     f"{exc.max_orders:,} đơn trước khi xuất Excel."
                 ),
             ) from exc
+        if actor.role == "staff":
+            hourly_decision = consume_quota(
+                session,
+                user_id=actor.id,
+                action="orders.export.requests",
+                amount=1,
+                limit=settings.staff_exports_per_hour,
+                window_seconds=3_600,
+            )
+            session.commit()
+            if not hourly_decision.allowed:
+                output_path.unlink(missing_ok=True)
+                _record_quota_denial(
+                    request,
+                    actor=actor,
+                    quota="orders.export.requests",
+                    decision=hourly_decision,
+                )
+                raise HTTPException(
+                    status_code=429,
+                    detail=(
+                        "Bạn đã xuất Excel quá nhiều lần trong một giờ. "
+                        "Hãy thử lại sau."
+                    ),
+                    headers={"Retry-After": str(hourly_decision.retry_after)},
+                )
+            daily_decision = consume_quota(
+                session,
+                user_id=actor.id,
+                action="orders.export.rows",
+                amount=max(exported_count, 1),
+                limit=settings.staff_export_rows_per_day,
+                window_seconds=86_400,
+            )
+            session.commit()
+            if not daily_decision.allowed:
+                output_path.unlink(missing_ok=True)
+                _record_quota_denial(
+                    request,
+                    actor=actor,
+                    quota="orders.export.rows",
+                    decision=daily_decision,
+                )
+                raise HTTPException(
+                    status_code=429,
+                    detail=(
+                        "Bạn đã đạt hạn mức số đơn được xuất trong 24 giờ. "
+                        "Hãy thử lại sau."
+                    ),
+                    headers={"Retry-After": str(daily_decision.retry_after)},
+                )
     _record_audit(
         request=request,
         actor_user_id=actor.id,
         action="orders.export",
         resource_type="orders",
         result="success",
-        metadata={"order_count": exported_count},
+        metadata={"order_count": exported_count, "trace_id": trace_id},
     )
 
     filename = f"pancake-orders-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
