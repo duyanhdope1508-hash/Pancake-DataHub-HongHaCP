@@ -99,6 +99,31 @@ class UpdateStaffRequest(BaseModel):
     reset_password: bool = False
 
 
+class ExportOrderKey(BaseModel):
+    shop_id: str = Field(min_length=1, max_length=64)
+    order_id: str = Field(min_length=1, max_length=128)
+
+
+class ExportOrdersRequest(BaseModel):
+    selection_mode: Literal["selected", "filtered"]
+    orders: list[ExportOrderKey] = Field(default_factory=list, max_length=100_000)
+    q: str | None = Field(default=None, max_length=100)
+    shop_id: list[str] | None = Field(default=None, max_length=100)
+    page_id: list[str] | None = Field(default=None, max_length=100)
+    status: list[int] | None = Field(default=None, max_length=100)
+    business_status: list[str] | None = Field(default=None, max_length=100)
+    carrier_name: list[str] | None = Field(default=None, max_length=100)
+    delivery_status: list[str] | None = Field(default=None, max_length=100)
+    date_from: datetime | None = None
+    date_to: datetime | None = None
+    min_total: Decimal | None = Field(default=None, ge=0)
+    max_total: Decimal | None = Field(default=None, ge=0)
+    has_tracking: bool | None = None
+    sent_to_carrier: bool | None = None
+    returned: bool | None = None
+    product: str | None = Field(default=None, max_length=200)
+
+
 def _safe_user(user: User) -> dict:
     return {
         "id": user.id,
@@ -834,24 +859,12 @@ def order_summary(
         return result
 
 
-@app.get("/api/orders/export")
-def export_orders(
+def _export_orders_response(
     request: Request,
-    q: str | None = Query(default=None, max_length=100),
-    shop_id: Annotated[list[str] | None, Query()] = None,
-    page_id: Annotated[list[str] | None, Query()] = None,
-    status: Annotated[list[int] | None, Query()] = None,
-    business_status: Annotated[list[str] | None, Query()] = None,
-    carrier_name: Annotated[list[str] | None, Query()] = None,
-    delivery_status: Annotated[list[str] | None, Query()] = None,
-    date_from: Annotated[datetime | None, Query()] = None,
-    date_to: Annotated[datetime | None, Query()] = None,
-    min_total: Annotated[Decimal | None, Query(ge=0)] = None,
-    max_total: Annotated[Decimal | None, Query(ge=0)] = None,
-    has_tracking: Annotated[bool | None, Query()] = None,
-    sent_to_carrier: Annotated[bool | None, Query()] = None,
-    returned: Annotated[bool | None, Query()] = None,
-    product: Annotated[str | None, Query(max_length=200)] = None,
+    *,
+    filters: dict,
+    order_keys: list[tuple[str, str]] | None = None,
+    selection_mode: str = "filtered",
 ) -> FileResponse:
     actor = request.state.current_user
     settings = get_settings()
@@ -860,25 +873,26 @@ def export_orders(
     ip_address, _user_agent = _audit_client(request)
     with SessionLocal() as session:
         allowed_shop_ids = authorized_shop_ids(session, actor)
-        effective_shop_ids = scoped_shop_filter(shop_id, allowed_shop_ids)
+        effective_shop_ids = scoped_shop_filter(filters.get("shop_id"), allowed_shop_ids)
         try:
             output_path, exported_count = export_orders_xlsx(
                 session,
-                query=q,
+                query=filters.get("q"),
                 shop_id=effective_shop_ids,
-                page_id=page_id,
-                status=status,
-                business_status=business_status,
-                carrier_name=carrier_name,
-                delivery_status=delivery_status,
-                date_from=date_from,
-                date_to=date_to,
-                min_total=min_total,
-                max_total=max_total,
-                has_tracking=has_tracking,
-                sent_to_carrier=sent_to_carrier,
-                returned=returned,
-                product=product,
+                page_id=filters.get("page_id"),
+                status=filters.get("status"),
+                business_status=filters.get("business_status"),
+                carrier_name=filters.get("carrier_name"),
+                delivery_status=filters.get("delivery_status"),
+                date_from=filters.get("date_from"),
+                date_to=filters.get("date_to"),
+                min_total=filters.get("min_total"),
+                max_total=filters.get("max_total"),
+                has_tracking=filters.get("has_tracking"),
+                sent_to_carrier=filters.get("sent_to_carrier"),
+                returned=filters.get("returned"),
+                product=filters.get("product"),
+                order_keys=order_keys,
                 max_orders=export_limit,
                 trace_id=trace_id,
                 exported_by=f"@{actor.username}",
@@ -949,7 +963,11 @@ def export_orders(
         action="orders.export",
         resource_type="orders",
         result="success",
-        metadata={"order_count": exported_count, "trace_id": trace_id},
+        metadata={
+            "order_count": exported_count,
+            "trace_id": trace_id,
+            "selection_mode": selection_mode,
+        },
     )
 
     filename = f"pancake-orders-{datetime.now().strftime('%Y%m%d-%H%M')}.xlsx"
@@ -960,6 +978,67 @@ def export_orders(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         ),
         background=BackgroundTask(output_path.unlink, missing_ok=True),
+    )
+
+
+@app.get("/api/orders/export")
+def export_orders(
+    request: Request,
+    q: str | None = Query(default=None, max_length=100),
+    shop_id: Annotated[list[str] | None, Query()] = None,
+    page_id: Annotated[list[str] | None, Query()] = None,
+    status: Annotated[list[int] | None, Query()] = None,
+    business_status: Annotated[list[str] | None, Query()] = None,
+    carrier_name: Annotated[list[str] | None, Query()] = None,
+    delivery_status: Annotated[list[str] | None, Query()] = None,
+    date_from: Annotated[datetime | None, Query()] = None,
+    date_to: Annotated[datetime | None, Query()] = None,
+    min_total: Annotated[Decimal | None, Query(ge=0)] = None,
+    max_total: Annotated[Decimal | None, Query(ge=0)] = None,
+    has_tracking: Annotated[bool | None, Query()] = None,
+    sent_to_carrier: Annotated[bool | None, Query()] = None,
+    returned: Annotated[bool | None, Query()] = None,
+    product: Annotated[str | None, Query(max_length=200)] = None,
+) -> FileResponse:
+    return _export_orders_response(
+        request,
+        filters={
+            "q": q,
+            "shop_id": shop_id,
+            "page_id": page_id,
+            "status": status,
+            "business_status": business_status,
+            "carrier_name": carrier_name,
+            "delivery_status": delivery_status,
+            "date_from": date_from,
+            "date_to": date_to,
+            "min_total": min_total,
+            "max_total": max_total,
+            "has_tracking": has_tracking,
+            "sent_to_carrier": sent_to_carrier,
+            "returned": returned,
+            "product": product,
+        },
+    )
+
+
+@app.post("/api/orders/export")
+def export_selected_orders(request: Request, payload: ExportOrdersRequest) -> FileResponse:
+    order_keys: list[tuple[str, str]] | None = None
+    if payload.selection_mode == "selected":
+        order_keys = list(dict.fromkeys((item.shop_id, item.order_id) for item in payload.orders))
+        if not order_keys:
+            raise HTTPException(status_code=422, detail="Hãy chọn ít nhất một đơn để xuất.")
+    filters = (
+        {}
+        if order_keys is not None
+        else payload.model_dump(exclude={"selection_mode", "orders"})
+    )
+    return _export_orders_response(
+        request,
+        filters=filters,
+        order_keys=order_keys,
+        selection_mode=payload.selection_mode,
     )
 
 

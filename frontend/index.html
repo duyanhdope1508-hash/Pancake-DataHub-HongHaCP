@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=25" />
-    <script src="/assets/app.js?v=25" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=26" />
+    <script src="/assets/app.js?v=26" defer></script>
   </head>
   <body>
     <main id="loginShell" class="login-shell" hidden>
@@ -137,8 +137,8 @@
               </button>
               <button id="resetFilters" class="reset-button" type="button">Xóa bộ lọc</button>
               <span class="export-action">
-                <button id="exportExcel" class="export-button" type="button">Xuất Excel</button>
-                <span class="info-tip align-right" tabindex="0" data-tooltip="Xuất đúng tập đơn đang lọc và trong phạm vi shop được cấp quyền, tối đa 100.000 đơn mỗi file." aria-label="Giải thích xuất Excel">i</span>
+                <button id="exportExcel" class="export-button" type="button">Xuất đơn đã chọn</button>
+                <span class="info-tip align-right" tabindex="0" data-tooltip="Tích từng đơn, chọn cả trang hoặc chọn toàn bộ kết quả đang lọc rồi xuất Excel." aria-label="Giải thích xuất Excel">i</span>
               </span>
             </div>
 
@@ -239,10 +239,21 @@
 
           <div id="errorBanner" class="error-banner" role="alert" hidden></div>
 
+          <div class="order-selection-bar" aria-live="polite">
+            <strong id="selectionSummary">Chưa chọn đơn nào</strong>
+            <div>
+              <button id="selectAllFiltered" class="secondary-button" type="button">Chọn tất cả kết quả đang lọc</button>
+              <button id="clearOrderSelection" class="text-button" type="button" disabled>Bỏ chọn</button>
+            </div>
+          </div>
+
           <div class="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th scope="col" class="select-column">
+                    <input id="selectCurrentPage" type="checkbox" aria-label="Chọn tất cả đơn trên trang này" />
+                  </th>
                   <th scope="col">Đơn hàng</th>
                   <th scope="col">Cửa hàng</th>
                   <th scope="col">Khách hàng</th>

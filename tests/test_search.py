@@ -23,6 +23,13 @@ def test_search_can_defer_filtered_summary() -> None:
     assert parameter.default is True
 
 
+def test_search_supports_explicit_order_selection() -> None:
+    statement = filtered_orders_statement(order_keys=[("shop-1", "order-1")])
+
+    assert "order_keys" in signature(filtered_orders_statement).parameters
+    assert statement.compile().params
+
+
 def test_search_supports_customer_group_sorting() -> None:
     parameter = signature(search_orders).parameters["sort_by"]
     assert parameter.default == "recent"

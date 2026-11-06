@@ -66,6 +66,7 @@ def export_orders_xlsx(
     sent_to_carrier: bool | None = None,
     returned: bool | None = None,
     product: str | None = None,
+    order_keys: list[tuple[str, str]] | None = None,
     max_orders: int = EXPORT_MAX_ORDERS,
     trace_id: str | None = None,
     exported_by: str | None = None,
@@ -87,6 +88,7 @@ def export_orders_xlsx(
         sent_to_carrier=sent_to_carrier,
         returned=returned,
         product=product,
+        order_keys=order_keys,
     )
     count_source = statement.with_only_columns(
         CoreOrder.shop_id,

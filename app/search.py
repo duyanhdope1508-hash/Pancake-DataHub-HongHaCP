@@ -3,7 +3,7 @@ from decimal import Decimal
 from hashlib import sha256
 from typing import Any
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, tuple_
 from sqlalchemy.orm import Session, aliased
 
 from app.business_status import (
@@ -49,6 +49,7 @@ def filtered_orders_statement(
     sent_to_carrier: bool | None = None,
     returned: bool | None = None,
     product: str | None = None,
+    order_keys: list[tuple[str, str]] | None = None,
     include_customer: bool = True,
 ) -> Any:
     if include_customer:
@@ -91,6 +92,10 @@ def filtered_orders_statement(
 
     if has_shop_constraint:
         statement = statement.where(CoreOrder.shop_id.in_(shop_ids))
+    if order_keys is not None:
+        statement = statement.where(
+            tuple_(CoreOrder.shop_id, CoreOrder.source_order_id).in_(order_keys)
+        )
     page_ids = _filter_values(page_id)
     if page_ids:
         statement = statement.where(CoreOrder.source_page_id.in_(page_ids))

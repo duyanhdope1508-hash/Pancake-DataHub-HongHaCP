@@ -8,6 +8,11 @@ const state = {
   csrfToken: "",
   auditPageNumber: 1,
   auditTotalPages: 1,
+  currentPageOrders: [],
+  selectedOrderKeys: new Set(),
+  allMatchingSelected: false,
+  totalMatchingOrders: 0,
+  appliedExportFilters: {},
 };
 
 const elements = {
@@ -83,6 +88,10 @@ const elements = {
   toggleAdvanced: document.querySelector("#toggleAdvanced"),
   resetFilters: document.querySelector("#resetFilters"),
   exportExcel: document.querySelector("#exportExcel"),
+  selectionSummary: document.querySelector("#selectionSummary"),
+  selectAllFiltered: document.querySelector("#selectAllFiltered"),
+  clearOrderSelection: document.querySelector("#clearOrderSelection"),
+  selectCurrentPage: document.querySelector("#selectCurrentPage"),
   savedFilterSelect: document.querySelector("#savedFilterSelect"),
   savedFilterName: document.querySelector("#savedFilterName"),
   saveFilter: document.querySelector("#saveFilter"),
@@ -326,6 +335,7 @@ function applySavedFilter() {
   elements.advancedFilters.hidden = !hasAdvancedFilters;
   elements.toggleAdvanced.setAttribute("aria-expanded", String(hasAdvancedFilters));
   state.pageNumber = 1;
+  resetOrderSelection();
   loadOrders();
 }
 
@@ -370,6 +380,11 @@ function showLogin(message = "") {
   state.staffManagement = null;
   state.passwordChangeRequired = false;
   state.csrfToken = "";
+  state.currentPageOrders = [];
+  state.selectedOrderKeys.clear();
+  state.allMatchingSelected = false;
+  state.totalMatchingOrders = 0;
+  state.appliedExportFilters = {};
   elements.ordersBody.replaceChildren();
   elements.dialogContent.replaceChildren();
   elements.staffList.replaceChildren();
@@ -1083,9 +1098,65 @@ async function syncNow() {
   }
 }
 
+function orderSelectionKey(order) {
+  return JSON.stringify([String(order.shop_id), String(order.order_id)]);
+}
+
+function resetOrderSelection() {
+  state.selectedOrderKeys.clear();
+  state.allMatchingSelected = false;
+  renderOrderSelection();
+}
+
+function renderOrderSelection() {
+  const checkboxes = elements.ordersBody.querySelectorAll(".order-select-checkbox");
+  for (const checkbox of checkboxes) {
+    checkbox.checked =
+      state.allMatchingSelected || state.selectedOrderKeys.has(checkbox.dataset.orderKey);
+    checkbox.disabled = state.allMatchingSelected;
+  }
+
+  const pageKeys = state.currentPageOrders.map(orderSelectionKey);
+  const selectedOnPage = state.allMatchingSelected
+    ? pageKeys.length
+    : pageKeys.filter((key) => state.selectedOrderKeys.has(key)).length;
+  elements.selectCurrentPage.checked = pageKeys.length > 0 && selectedOnPage === pageKeys.length;
+  elements.selectCurrentPage.indeterminate = selectedOnPage > 0 && selectedOnPage < pageKeys.length;
+  elements.selectCurrentPage.disabled = state.allMatchingSelected || pageKeys.length === 0;
+
+  const selectedCount = state.allMatchingSelected
+    ? state.totalMatchingOrders
+    : state.selectedOrderKeys.size;
+  elements.selectionSummary.textContent = state.allMatchingSelected
+    ? `Đã chọn tất cả ${integerFormatter.format(selectedCount)} đơn đang lọc`
+    : selectedCount
+      ? `Đã chọn ${integerFormatter.format(selectedCount)} đơn`
+      : "Chưa chọn đơn nào";
+  elements.clearOrderSelection.disabled = selectedCount === 0;
+  elements.selectAllFiltered.disabled = state.allMatchingSelected || state.totalMatchingOrders === 0;
+  elements.selectAllFiltered.textContent = state.allMatchingSelected
+    ? "Đã chọn toàn bộ kết quả"
+    : `Chọn tất cả ${integerFormatter.format(state.totalMatchingOrders)} kết quả`;
+  elements.exportExcel.disabled = selectedCount === 0;
+}
+
 function orderRow(order, sameCustomer = false) {
   const row = document.createElement("tr");
   if (sameCustomer) row.classList.add("customer-group-continuation");
+
+  const selectionCell = createElement("td", "select-column");
+  const selectionCheckbox = document.createElement("input");
+  const selectionKey = orderSelectionKey(order);
+  selectionCheckbox.type = "checkbox";
+  selectionCheckbox.className = "order-select-checkbox";
+  selectionCheckbox.dataset.orderKey = selectionKey;
+  selectionCheckbox.setAttribute("aria-label", `Chọn đơn ${order.order_id}`);
+  selectionCheckbox.addEventListener("change", () => {
+    if (selectionCheckbox.checked) state.selectedOrderKeys.add(selectionKey);
+    else state.selectedOrderKeys.delete(selectionKey);
+    renderOrderSelection();
+  });
+  selectionCell.append(selectionCheckbox);
 
   const orderCell = document.createElement("td");
   orderCell.append(
@@ -1136,6 +1207,7 @@ function orderRow(order, sameCustomer = false) {
   actionCell.append(viewButton);
 
   row.append(
+    selectionCell,
     orderCell,
     shopCell,
     customerCell,
@@ -1158,13 +1230,16 @@ function renderOrders(data) {
     return orderRow(order, sameCustomer);
   });
   elements.ordersBody.replaceChildren(...rows);
+  state.currentPageOrders = data.items;
   elements.emptyState.hidden = data.items.length !== 0;
 
   const pagination = data.pagination;
   state.pageNumber = pagination.page_number;
   state.totalPages = Math.max(pagination.total_pages, 1);
+  state.totalMatchingOrders = pagination.total_items;
   elements.resultCount.textContent = `${integerFormatter.format(pagination.total_items)} kết quả`;
   renderPagination();
+  renderOrderSelection();
 }
 
 function paginationTokens(currentPage, totalPages) {
@@ -1291,6 +1366,33 @@ function buildFilterParams(includePagination = true) {
   return params;
 }
 
+function buildExportFilters() {
+  const booleanValue = (element) =>
+    element.value === "" ? null : element.value === "true";
+  return {
+    q: elements.searchInput.value.trim() || null,
+    shop_id: elements.shopFilter.value ? [elements.shopFilter.value] : null,
+    page_id: elements.pageFilter.value ? [elements.pageFilter.value] : null,
+    business_status: elements.statusFilter.value ? [elements.statusFilter.value] : null,
+    carrier_name: elements.carrierFilter.value ? [elements.carrierFilter.value] : null,
+    delivery_status: elements.deliveryStatusFilter.value
+      ? [elements.deliveryStatusFilter.value]
+      : null,
+    date_from: elements.dateFromFilter.value
+      ? new Date(`${elements.dateFromFilter.value}T00:00:00`).toISOString()
+      : null,
+    date_to: elements.dateToFilter.value
+      ? new Date(`${elements.dateToFilter.value}T23:59:59.999`).toISOString()
+      : null,
+    min_total: elements.minTotalFilter.value || null,
+    max_total: elements.maxTotalFilter.value || null,
+    has_tracking: booleanValue(elements.trackingFilter),
+    sent_to_carrier: booleanValue(elements.sentFilter),
+    returned: booleanValue(elements.returnedFilter),
+    product: elements.productFilter.value.trim() || null,
+  };
+}
+
 async function loadOrders() {
   clearError();
   elements.resultCount.textContent = "Đang tải…";
@@ -1298,6 +1400,7 @@ async function loadOrders() {
   const params = buildFilterParams();
   params.set("include_summary", "false");
   const summaryParams = buildFilterParams(false);
+  const exportFilters = buildExportFilters();
   elements.filteredOrders.textContent = "Đang tính…";
   elements.filteredRevenue.textContent = "Đang tính…";
   elements.filteredDelivered.textContent = "Đang tính…";
@@ -1310,7 +1413,9 @@ async function loadOrders() {
     .catch((error) => error);
 
   try {
-    renderOrders(await fetchJson(`/api/orders?${params.toString()}`));
+    const data = await fetchJson(`/api/orders?${params.toString()}`);
+    state.appliedExportFilters = exportFilters;
+    renderOrders(data);
     const summaryError = await summaryPromise;
     if (summaryError) {
       showError(`Danh sách đã tải nhưng chưa tính được thống kê. ${summaryError.message}`);
@@ -1324,12 +1429,31 @@ async function loadOrders() {
 
 async function exportOrders() {
   clearError();
-  if (!validateFilters()) return;
+  const selectedCount = state.allMatchingSelected
+    ? state.totalMatchingOrders
+    : state.selectedOrderKeys.size;
+  if (selectedCount === 0) {
+    showError("Hãy chọn ít nhất một đơn, một trang hoặc toàn bộ kết quả đang lọc.");
+    return;
+  }
   elements.exportExcel.disabled = true;
   elements.exportExcel.textContent = "Đang tạo file…";
   try {
-    const params = buildFilterParams(false);
-    const response = await fetch(`/api/orders/export?${params.toString()}`);
+    const payload = {
+      selection_mode: state.allMatchingSelected ? "filtered" : "selected",
+      orders: state.allMatchingSelected
+        ? []
+        : Array.from(state.selectedOrderKeys, (key) => {
+            const [shop_id, order_id] = JSON.parse(key);
+            return { shop_id, order_id };
+          }),
+      ...state.appliedExportFilters,
+    };
+    const response = await secureFetch("/api/orders/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
     if (!response.ok) {
       const payload = await response.json().catch(() => ({}));
       throw new Error(payload.detail || `Yêu cầu thất bại (${response.status})`);
@@ -1349,8 +1473,8 @@ async function exportOrders() {
   } catch (error) {
     showError(`Không thể xuất Excel. ${error.message}`);
   } finally {
-    elements.exportExcel.disabled = false;
-    elements.exportExcel.textContent = "Xuất Excel";
+    elements.exportExcel.textContent = "Xuất đơn đã chọn";
+    renderOrderSelection();
   }
 }
 
@@ -1450,6 +1574,7 @@ async function openOrder(orderId, shopId) {
 elements.filterForm.addEventListener("submit", (event) => {
   event.preventDefault();
   state.pageNumber = 1;
+  resetOrderSelection();
   loadOrders();
 });
 
@@ -1516,21 +1641,25 @@ elements.nextAuditPage.addEventListener("click", () => {
 
 elements.shopFilter.addEventListener("change", () => {
   state.pageNumber = 1;
+  resetOrderSelection();
   loadOrders();
 });
 
 elements.pageFilter.addEventListener("change", () => {
   state.pageNumber = 1;
+  resetOrderSelection();
   loadOrders();
 });
 
 elements.statusFilter.addEventListener("change", () => {
   state.pageNumber = 1;
+  resetOrderSelection();
   loadOrders();
 });
 
 elements.sortFilter.addEventListener("change", () => {
   state.pageNumber = 1;
+  resetOrderSelection();
   loadOrders();
 });
 
@@ -1551,10 +1680,32 @@ elements.resetFilters.addEventListener("click", () => {
   showSavedFilterMessage("");
   updateAdvancedLabel();
   state.pageNumber = 1;
+  resetOrderSelection();
   loadOrders();
 });
 
 elements.exportExcel.addEventListener("click", exportOrders);
+elements.selectCurrentPage.addEventListener("change", () => {
+  for (const order of state.currentPageOrders) {
+    const key = orderSelectionKey(order);
+    if (elements.selectCurrentPage.checked) state.selectedOrderKeys.add(key);
+    else state.selectedOrderKeys.delete(key);
+  }
+  renderOrderSelection();
+});
+elements.selectAllFiltered.addEventListener("click", () => {
+  if (state.currentUser?.role === "staff" && state.totalMatchingOrders > 500) {
+    showError(
+      "Nhân viên chỉ được xuất tối đa 500 đơn. Hãy thu hẹp bộ lọc còn 500 đơn hoặc ít hơn.",
+    );
+    return;
+  }
+  clearError();
+  state.selectedOrderKeys.clear();
+  state.allMatchingSelected = true;
+  renderOrderSelection();
+});
+elements.clearOrderSelection.addEventListener("click", resetOrderSelection);
 elements.syncNow.addEventListener("click", syncNow);
 elements.savedFilterSelect.addEventListener("change", applySavedFilter);
 elements.saveFilter.addEventListener("click", saveCurrentFilter);

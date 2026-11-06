@@ -141,6 +141,10 @@ def test_frontend_has_search_filters_and_dialog() -> None:
         'id="returnedFilter"',
         'id="resetFilters"',
         'id="exportExcel"',
+        'id="selectionSummary"',
+        'id="selectAllFiltered"',
+        'id="clearOrderSelection"',
+        'id="selectCurrentPage"',
         'id="savedFilterSelect"',
         'id="savedFilterName"',
         'id="saveFilter"',
@@ -165,6 +169,9 @@ def test_frontend_has_search_filters_and_dialog() -> None:
     assert "status.delivery_status_label" in javascript
     assert "order.delivery_status_label" in javascript
     assert "shipping.delivery_status_label" in javascript
+    assert 'selection_mode: state.allMatchingSelected ? "filtered" : "selected"' in javascript
+    assert 'secureFetch("/api/orders/export"' in javascript
+    assert "state.appliedExportFilters = exportFilters" in javascript
 
 
 def test_frontend_saved_filters_are_local_and_bounded() -> None:

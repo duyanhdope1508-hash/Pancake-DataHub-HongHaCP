@@ -38,6 +38,47 @@ def test_system_status_route_is_registered() -> None:
     assert "/api/auth/change-password" in paths
     assert "/api/admin/users" in paths
     assert "/api/admin/audit-logs" in paths
+    export_methods = {
+        method
+        for route in app.routes
+        if route.path == "/api/orders/export"
+        for method in route.methods
+    }
+    assert {"GET", "POST"} <= export_methods
+
+
+def test_selected_export_requires_at_least_one_order() -> None:
+    payload = main.ExportOrdersRequest(selection_mode="selected")
+
+    with pytest.raises(HTTPException) as exc_info:
+        main.export_selected_orders(_request_for("admin"), payload)
+
+    assert exc_info.value.status_code == 422
+
+
+def test_selected_export_deduplicates_keys_and_ignores_stale_filters(monkeypatch) -> None:
+    export_response = Mock(return_value="response")
+    monkeypatch.setattr(main, "_export_orders_response", export_response)
+    payload = main.ExportOrdersRequest(
+        selection_mode="selected",
+        q="a filter that changed after selection",
+        orders=[
+            main.ExportOrderKey(shop_id="shop-1", order_id="order-1"),
+            main.ExportOrderKey(shop_id="shop-1", order_id="order-1"),
+            main.ExportOrderKey(shop_id="shop-2", order_id="order-2"),
+        ],
+    )
+    request = _request_for("admin")
+
+    result = main.export_selected_orders(request, payload)
+
+    assert result == "response"
+    export_response.assert_called_once_with(
+        request,
+        filters={},
+        order_keys=[("shop-1", "order-1"), ("shop-2", "order-2")],
+        selection_mode="selected",
+    )
 
 
 def test_sensitive_responses_have_browser_security_headers() -> None:
