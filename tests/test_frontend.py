@@ -106,6 +106,7 @@ def test_frontend_uses_safe_dom_rendering() -> None:
 
 def test_frontend_has_search_filters_and_dialog() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
     for element_id in (
         'id="filterForm"',
         'id="systemStateText"',
@@ -139,9 +140,17 @@ def test_frontend_has_search_filters_and_dialog() -> None:
         'id="filteredDelivered"',
         'id="filteredFailed"',
         'id="ordersBody"',
+        'id="firstPage"',
+        'id="pageButtons"',
+        'id="lastPage"',
+        'id="pageJumpForm"',
+        'id="pageJumpInput"',
         'id="orderDialog"',
     ):
         assert element_id in html
+    assert "paginationTokens" in javascript
+    assert "goToPage(state.totalPages)" in javascript
+    assert "pageJumpInput.valueAsNumber" in javascript
 
 
 def test_frontend_saved_filters_are_local_and_bounded() -> None:

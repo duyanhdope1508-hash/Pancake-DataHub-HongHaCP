@@ -107,8 +107,13 @@ const elements = {
   totalStatuses: document.querySelector("#totalStatuses"),
   systemStateText: document.querySelector("#systemStateText"),
   syncNow: document.querySelector("#syncNow"),
+  firstPage: document.querySelector("#firstPage"),
   previousPage: document.querySelector("#previousPage"),
   nextPage: document.querySelector("#nextPage"),
+  lastPage: document.querySelector("#lastPage"),
+  pageButtons: document.querySelector("#pageButtons"),
+  pageJumpForm: document.querySelector("#pageJumpForm"),
+  pageJumpInput: document.querySelector("#pageJumpInput"),
   pageIndicator: document.querySelector("#pageIndicator"),
   orderDialog: document.querySelector("#orderDialog"),
   dialogTitle: document.querySelector("#dialogTitle"),
@@ -1081,11 +1086,66 @@ function renderOrders(data) {
   elements.emptyState.hidden = data.items.length !== 0;
 
   const pagination = data.pagination;
+  state.pageNumber = pagination.page_number;
   state.totalPages = Math.max(pagination.total_pages, 1);
   elements.resultCount.textContent = `${integerFormatter.format(pagination.total_items)} kết quả`;
-  elements.pageIndicator.textContent = `Trang ${state.pageNumber} / ${state.totalPages}`;
-  elements.previousPage.disabled = state.pageNumber <= 1;
-  elements.nextPage.disabled = state.pageNumber >= state.totalPages;
+  renderPagination();
+}
+
+function paginationTokens(currentPage, totalPages) {
+  const pages = new Set([1, totalPages]);
+  for (let page = currentPage - 2; page <= currentPage + 2; page += 1) {
+    if (page >= 1 && page <= totalPages) pages.add(page);
+  }
+  const sorted = Array.from(pages).sort((left, right) => left - right);
+  const tokens = [];
+  for (const page of sorted) {
+    const previous = tokens[tokens.length - 1];
+    if (typeof previous === "number" && page - previous > 1) tokens.push("ellipsis");
+    tokens.push(page);
+  }
+  return tokens;
+}
+
+function goToPage(pageNumber) {
+  const target = Math.min(Math.max(Math.trunc(Number(pageNumber)), 1), state.totalPages);
+  if (!Number.isFinite(target)) return;
+  clearError();
+  if (target === state.pageNumber) {
+    elements.pageJumpInput.value = String(target);
+    return;
+  }
+  state.pageNumber = target;
+  loadOrders();
+}
+
+function renderPagination() {
+  const tokens = paginationTokens(state.pageNumber, state.totalPages);
+  const controls = tokens.map((token) => {
+    if (token === "ellipsis") {
+      return createElement("span", "page-ellipsis", "…");
+    }
+    const button = createElement("button", "page-number", integerFormatter.format(token));
+    button.type = "button";
+    button.setAttribute("aria-label", `Trang ${token}`);
+    if (token === state.pageNumber) {
+      button.classList.add("is-current");
+      button.setAttribute("aria-current", "page");
+      button.disabled = true;
+    }
+    button.addEventListener("click", () => goToPage(token));
+    return button;
+  });
+  elements.pageButtons.replaceChildren(...controls);
+  elements.pageIndicator.textContent = `Trang ${integerFormatter.format(state.pageNumber)} / ${integerFormatter.format(state.totalPages)}`;
+  elements.pageJumpInput.max = String(state.totalPages);
+  elements.pageJumpInput.value = String(state.pageNumber);
+  const atFirstPage = state.pageNumber <= 1;
+  const atLastPage = state.pageNumber >= state.totalPages;
+  elements.firstPage.disabled = atFirstPage;
+  elements.previousPage.disabled = atFirstPage;
+  elements.nextPage.disabled = atLastPage;
+  elements.lastPage.disabled = atLastPage;
 }
 
 function renderOrderSummary(summary) {
@@ -1417,18 +1477,19 @@ elements.savedFilterSelect.addEventListener("change", applySavedFilter);
 elements.saveFilter.addEventListener("click", saveCurrentFilter);
 elements.deleteFilter.addEventListener("click", deleteSavedFilter);
 
-elements.previousPage.addEventListener("click", () => {
-  if (state.pageNumber > 1) {
-    state.pageNumber -= 1;
-    loadOrders();
+elements.firstPage.addEventListener("click", () => goToPage(1));
+elements.previousPage.addEventListener("click", () => goToPage(state.pageNumber - 1));
+elements.nextPage.addEventListener("click", () => goToPage(state.pageNumber + 1));
+elements.lastPage.addEventListener("click", () => goToPage(state.totalPages));
+elements.pageJumpForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const requestedPage = elements.pageJumpInput.valueAsNumber;
+  if (!Number.isInteger(requestedPage) || requestedPage < 1 || requestedPage > state.totalPages) {
+    showError(`Hãy nhập số trang từ 1 đến ${integerFormatter.format(state.totalPages)}.`);
+    elements.pageJumpInput.focus();
+    return;
   }
-});
-
-elements.nextPage.addEventListener("click", () => {
-  if (state.pageNumber < state.totalPages) {
-    state.pageNumber += 1;
-    loadOrders();
-  }
+  goToPage(requestedPage);
 });
 
 elements.closeDialog.addEventListener("click", () => elements.orderDialog.close());

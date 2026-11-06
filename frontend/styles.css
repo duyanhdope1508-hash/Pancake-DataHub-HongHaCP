@@ -1245,13 +1245,83 @@ tbody tr:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 16px;
   padding: 18px 30px;
 }
 
-.pagination span {
+.page-navigation,
+.page-buttons,
+.page-jump-form {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.page-navigation {
+  min-width: 0;
+}
+
+.page-buttons {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.page-number {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 7px 9px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.page-number:hover {
+  border-color: var(--accent);
+  color: var(--accent-dark);
+}
+
+.page-number.is-current {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+  opacity: 1;
+}
+
+.page-ellipsis {
+  padding: 0 2px;
   color: var(--muted);
-  font-size: 13px;
+}
+
+.page-jump-form {
+  flex: 0 0 auto;
+}
+
+.page-jump-form span,
+.page-jump-form label {
+  color: var(--muted);
+  font-size: 11px;
   font-weight: 650;
+  white-space: nowrap;
+}
+
+.page-jump-form input {
+  width: 92px;
+  min-height: 36px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.page-navigation .secondary-button,
+.page-jump-form .secondary-button {
+  min-height: 36px;
+  padding: 8px 11px;
 }
 
 .secondary-button {
@@ -1992,6 +2062,17 @@ td {
 
   .export-action {
     margin-left: 0;
+  }
+
+  .pagination,
+  .page-navigation {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .page-jump-form {
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   table {

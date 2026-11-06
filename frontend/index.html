@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=19" />
-    <script src="/assets/app.js?v=21" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=22" />
+    <script src="/assets/app.js?v=22" defer></script>
   </head>
   <body>
     <main id="loginShell" class="login-shell" hidden>
@@ -262,9 +262,19 @@
           </div>
 
           <nav class="pagination" aria-label="Phân trang">
-            <button id="previousPage" class="secondary-button" type="button">← Trang trước</button>
-            <span id="pageIndicator">Trang — / —</span>
-            <button id="nextPage" class="secondary-button" type="button">Trang sau →</button>
+            <div class="page-navigation">
+              <button id="firstPage" class="secondary-button" type="button" aria-label="Trang đầu">« Đầu</button>
+              <button id="previousPage" class="secondary-button" type="button" aria-label="Trang trước">‹</button>
+              <div id="pageButtons" class="page-buttons" aria-label="Chọn trang"></div>
+              <button id="nextPage" class="secondary-button" type="button" aria-label="Trang sau">›</button>
+              <button id="lastPage" class="secondary-button" type="button" aria-label="Trang cuối">Cuối »</button>
+            </div>
+            <form id="pageJumpForm" class="page-jump-form">
+              <span id="pageIndicator">Trang — / —</span>
+              <label for="pageJumpInput">Đến trang</label>
+              <input id="pageJumpInput" type="number" min="1" inputmode="numeric" autocomplete="off" />
+              <button class="secondary-button" type="submit">Đi</button>
+            </form>
           </nav>
         </section>
       </main>
