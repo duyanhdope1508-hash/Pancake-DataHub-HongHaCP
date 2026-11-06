@@ -151,6 +151,9 @@ def test_frontend_has_search_filters_and_dialog() -> None:
     assert "paginationTokens" in javascript
     assert "goToPage(state.totalPages)" in javascript
     assert "pageJumpInput.valueAsNumber" in javascript
+    assert "status.delivery_status_label" in javascript
+    assert "order.delivery_status_label" in javascript
+    assert "shipping.delivery_status_label" in javascript
 
 
 def test_frontend_saved_filters_are_local_and_bounded() -> None:

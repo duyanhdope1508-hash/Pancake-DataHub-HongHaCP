@@ -4,6 +4,7 @@ from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.business_status import business_status_label, classify_business_status
+from app.delivery_status import delivery_status_label
 from app.models import CoreCustomer, CoreOrder, CoreOrderItem, Shop
 
 
@@ -61,6 +62,7 @@ def serialize_order_detail(
             "shipping_fee": order.shipping_fee,
             "carrier_name": order.carrier_name,
             "delivery_status": order.delivery_status,
+            "delivery_status_label": delivery_status_label(order.delivery_status),
             "sent_to_carrier": bool(order.sent_to_carrier_at),
             "sent_to_carrier_at": order.sent_to_carrier_at,
             "receipt_status": receipt_status(order.status_name),

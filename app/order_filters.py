@@ -8,6 +8,7 @@ from app.business_status import (
     BUSINESS_STATUS_ORDER,
     business_status_expression,
 )
+from app.delivery_status import delivery_status_label
 from app.models import CoreOrder, Shop
 
 
@@ -142,7 +143,11 @@ def order_filters(
             for carrier_name, order_count in carrier_rows
         ],
         "delivery_statuses": [
-            {"delivery_status": delivery_status, "order_count": order_count}
+            {
+                "delivery_status": delivery_status,
+                "delivery_status_label": delivery_status_label(delivery_status),
+                "order_count": order_count,
+            }
             for delivery_status, order_count in delivery_status_rows
         ],
         "date_range": {

@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.business_status import business_status_label, classify_business_status
+from app.delivery_status import delivery_status_label
 from app.models import CoreOrder, Shop
 from app.search import filtered_orders_statement
 
@@ -233,7 +234,7 @@ def export_orders_xlsx(
                 business_status_label(normalized_status),
                 order.status_name,
                 order.carrier_name,
-                order.delivery_status,
+                delivery_status_label(order.delivery_status),
                 order.tracking_code,
                 order.total_quantity,
                 order.total_price,

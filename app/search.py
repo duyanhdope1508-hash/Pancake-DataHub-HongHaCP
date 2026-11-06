@@ -11,6 +11,7 @@ from app.business_status import (
     business_status_label,
     classify_business_status,
 )
+from app.delivery_status import delivery_status_label
 from app.models import CoreCustomer, CoreOrder, CoreOrderItem, Shop
 from app.transform import normalize_customer_name
 
@@ -263,6 +264,7 @@ def search_orders(
                 "tracking_code": order.tracking_code,
                 "carrier_name": order.carrier_name,
                 "delivery_status": order.delivery_status,
+                "delivery_status_label": delivery_status_label(order.delivery_status),
                 "sent_to_carrier_at": order.sent_to_carrier_at,
                 "returned_reason": order.returned_reason,
                 "total_price": order.total_price,

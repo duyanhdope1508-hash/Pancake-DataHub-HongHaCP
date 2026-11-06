@@ -957,7 +957,7 @@ async function loadFilters() {
     addOption(
       elements.deliveryStatusFilter,
       status.delivery_status,
-      `${status.delivery_status} · ${integerFormatter.format(status.order_count)}`,
+      `${status.delivery_status_label || "Chưa xác định"} · ${integerFormatter.format(status.order_count)}`,
     );
   }
 }
@@ -1047,7 +1047,9 @@ function orderRow(order, sameCustomer = false) {
     createElement(
       "span",
       "secondary-text",
-      [order.status_name, order.carrier_name, order.delivery_status].filter(Boolean).join(" · "),
+      [order.status_name, order.carrier_name, order.delivery_status_label]
+        .filter(Boolean)
+        .join(" · "),
     ),
   );
 
@@ -1334,7 +1336,7 @@ function renderOrderDetail(order) {
     detailField("Đơn vị vận chuyển", shipping.carrier_name),
     detailField("Phí vận chuyển", formatMoney(shipping.shipping_fee, order.currency)),
     detailField("Gửi vận chuyển", shipping.sent_to_carrier ? "Đã gửi" : "Chưa gửi"),
-    detailField("Trạng thái giao hàng", shipping.delivery_status),
+    detailField("Trạng thái giao hàng", shipping.delivery_status_label),
     detailField("Kết quả nhận hàng", receiptStatusLabel(shipping.receipt_status)),
     detailField("Người nhận", shipping.recipient_name),
     detailField("SĐT nhận hàng", shipping.phone),

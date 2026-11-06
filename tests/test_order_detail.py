@@ -47,6 +47,7 @@ def test_order_detail_returns_full_contact_data_after_authentication() -> None:
     assert result["shipping"]["address"] == "Hanoi"
     assert result["shipping"]["phone"] == "0987654321"
     assert result["shipping"]["tracking_code"] == "TRACK-1"
+    assert result["shipping"]["delivery_status_label"] == "Đang vận chuyển"
     assert result["business_status"] == "in_transit"
     assert result["business_status_label"] == "Đang giao"
     assert result["items"][0]["product_name"] == "Product"

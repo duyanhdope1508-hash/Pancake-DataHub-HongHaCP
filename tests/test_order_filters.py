@@ -14,5 +14,6 @@ def test_filter_metadata_includes_fulfillment_dimensions() -> None:
     assert '"carriers"' in source
     assert '"business_statuses"' in source
     assert '"delivery_statuses"' in source
+    assert '"delivery_status_label"' in source
     assert '"date_range"' in source
 
