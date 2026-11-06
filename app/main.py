@@ -109,13 +109,32 @@ def _safe_user(user: User) -> dict:
     }
 
 
-def _add_security_headers(response: Response) -> Response:
+def _add_security_headers(
+    response: Response,
+    *,
+    no_store: bool = False,
+    hsts: bool = False,
+) -> Response:
     response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "0"
+    response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
     response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = (
+        "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+    )
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-origin"
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self'; style-src 'self'; "
-        "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'"
+        "img-src 'self' data:; connect-src 'self'; object-src 'none'; "
+        "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     )
+    if no_store:
+        response.headers["Cache-Control"] = "no-store, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+    if hsts:
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
     return response
 
 
@@ -152,6 +171,12 @@ def _cached_order_filters(
 
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
+    no_store = request.url.path == "/" or request.url.path.startswith("/api/")
+    hsts = get_settings().auth_cookie_secure
+
+    def secure(response: Response) -> Response:
+        return _add_security_headers(response, no_store=no_store, hsts=hsts)
+
     if request.url.path.startswith("/api/") and not is_public_path(request.url.path):
         raw_token = request.cookies.get(SESSION_COOKIE_NAME)
         with SessionLocal() as session:
@@ -163,14 +188,14 @@ async def security_headers(request: Request, call_next):
             )
             response.delete_cookie(SESSION_COOKIE_NAME, path="/")
             response.delete_cookie(CSRF_COOKIE_NAME, path="/")
-            return _add_security_headers(response)
+            return secure(response)
         request.state.current_user = authenticated.user
         request.state.auth_session_id = authenticated.session.id
         if request.method in {"POST", "PUT", "PATCH", "DELETE"} and not verify_csrf_token(
             authenticated.session,
             request.headers.get("X-CSRF-Token"),
         ):
-            return _add_security_headers(
+            return secure(
                 JSONResponse(
                     status_code=403,
                     content={
@@ -184,7 +209,7 @@ async def security_headers(request: Request, call_next):
             "/api/auth/logout",
             "/api/auth/change-password",
         }:
-            return _add_security_headers(
+            return secure(
                 JSONResponse(
                     status_code=403,
                     content={
@@ -195,7 +220,7 @@ async def security_headers(request: Request, call_next):
             )
 
     response = await call_next(request)
-    return _add_security_headers(response)
+    return secure(response)
 
 
 @app.get("/", include_in_schema=False)

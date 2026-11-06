@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
 from app import main
 from app.main import app
@@ -38,6 +38,18 @@ def test_system_status_route_is_registered() -> None:
     assert "/api/auth/change-password" in paths
     assert "/api/admin/users" in paths
     assert "/api/admin/audit-logs" in paths
+
+
+def test_sensitive_responses_have_browser_security_headers() -> None:
+    response = main._add_security_headers(Response(), no_store=True, hsts=True)
+
+    assert response.headers["X-Frame-Options"] == "DENY"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+    assert response.headers["Cache-Control"] == "no-store, max-age=0"
+    assert response.headers["Pragma"] == "no-cache"
+    assert response.headers["Strict-Transport-Security"] == "max-age=31536000"
+    assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+    assert "camera=()" in response.headers["Permissions-Policy"]
 
 
 @pytest.mark.asyncio
