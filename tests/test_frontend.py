@@ -80,6 +80,16 @@ def test_admin_can_filter_and_page_through_audit_log() -> None:
     assert "user.role !== \"admin\"" in javascript
 
 
+def test_mutating_requests_send_session_bound_csrf_header() -> None:
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    assert 'readCookie("hongha_csrf")' in javascript
+    assert 'headers.set("X-CSRF-Token", state.csrfToken)' in javascript
+    assert 'secureFetch("/api/auth/logout"' in javascript
+    assert 'secureFetch("/api/auth/change-password"' in javascript
+    assert 'secureFetch("/api/sync"' in javascript
+
+
 def test_frontend_uses_safe_dom_rendering() -> None:
     javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
     assert ".innerHTML" not in javascript

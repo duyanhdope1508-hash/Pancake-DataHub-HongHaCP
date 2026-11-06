@@ -5,6 +5,7 @@ const state = {
   currentUser: null,
   staffManagement: null,
   passwordChangeRequired: false,
+  csrfToken: "",
   auditPageNumber: 1,
   auditTotalPages: 1,
 };
@@ -334,10 +335,23 @@ async function fetchJson(url) {
   return response.json();
 }
 
+function readCookie(name) {
+  const prefix = `${name}=`;
+  const entry = document.cookie.split("; ").find((value) => value.startsWith(prefix));
+  return entry ? decodeURIComponent(entry.slice(prefix.length)) : "";
+}
+
+function secureFetch(url, options = {}) {
+  const headers = new Headers(options.headers || {});
+  if (state.csrfToken) headers.set("X-CSRF-Token", state.csrfToken);
+  return fetch(url, { ...options, headers });
+}
+
 function showLogin(message = "") {
   state.currentUser = null;
   state.staffManagement = null;
   state.passwordChangeRequired = false;
+  state.csrfToken = "";
   elements.ordersBody.replaceChildren();
   elements.dialogContent.replaceChildren();
   elements.staffList.replaceChildren();
@@ -400,6 +414,7 @@ async function login(event) {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.detail || "Không thể đăng nhập.");
+    state.csrfToken = readCookie("hongha_csrf");
     showApplication(payload.user);
     elements.loginPassword.value = "";
     if (payload.user.must_change_password) {
@@ -418,7 +433,10 @@ async function login(event) {
 async function logout() {
   elements.logoutButton.disabled = true;
   try {
-    await fetch("/api/auth/logout", { method: "POST", headers: { Accept: "application/json" } });
+    await secureFetch("/api/auth/logout", {
+      method: "POST",
+      headers: { Accept: "application/json" },
+    });
   } finally {
     elements.logoutButton.disabled = false;
     showLogin();
@@ -466,7 +484,7 @@ async function saveOwnPassword(event) {
   elements.savePasswordButton.disabled = true;
   elements.savePasswordButton.textContent = "Đang đổi…";
   try {
-    const response = await fetch("/api/auth/change-password", {
+    const response = await secureFetch("/api/auth/change-password", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({
@@ -660,7 +678,7 @@ async function saveStaff(event) {
   elements.saveStaffButton.disabled = true;
   elements.saveStaffButton.textContent = "Đang lưu…";
   try {
-    const response = await fetch(
+    const response = await secureFetch(
       isEditing ? `/api/admin/users/${encodeURIComponent(userId)}` : "/api/admin/users",
       {
         method: isEditing ? "PUT" : "POST",
@@ -878,7 +896,7 @@ async function syncNow() {
   elements.syncNow.textContent = "Đang đồng bộ…";
   elements.systemStateText.textContent = "Đang lấy đơn mới…";
   try {
-    const response = await fetch("/api/sync", {
+    const response = await secureFetch("/api/sync", {
       method: "POST",
       headers: { Accept: "application/json" },
     });
@@ -1338,6 +1356,7 @@ elements.orderDialog.addEventListener("click", (event) => {
 
 async function initialize() {
   try {
+    state.csrfToken = readCookie("hongha_csrf");
     const auth = await fetchJson("/api/auth/me");
     showApplication(auth.user);
     if (auth.user.must_change_password) {

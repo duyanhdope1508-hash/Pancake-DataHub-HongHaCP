@@ -86,6 +86,7 @@ class UserSession(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    csrf_token_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     user_id: Mapped[str] = mapped_column(
         String(36), ForeignKey("auth_users.id", ondelete="CASCADE"), nullable=False
     )

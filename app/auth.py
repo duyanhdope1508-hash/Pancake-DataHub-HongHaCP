@@ -12,6 +12,7 @@ from app.models import LoginThrottle, User, UserSession
 from app.security import hash_password, verify_password
 
 SESSION_COOKIE_NAME = "hongha_session"
+CSRF_COOKIE_NAME = "hongha_csrf"
 
 
 @dataclass(frozen=True)
@@ -94,13 +95,15 @@ def create_user_session(
     *,
     user_id: str,
     session_hours: int,
-) -> tuple[UserSession, str]:
+) -> tuple[UserSession, str, str]:
     session_id = str(uuid4())
     raw_token = f"{session_id}.{secrets.token_urlsafe(32)}"
+    csrf_token = secrets.token_urlsafe(32)
     now = datetime.now(UTC)
     user_session = UserSession(
         id=session_id,
         token_hash=_hash_token(raw_token),
+        csrf_token_hash=_hash_token(csrf_token),
         user_id=user_id,
         created_at=now,
         last_seen_at=now,
@@ -108,7 +111,13 @@ def create_user_session(
     )
     db.add(user_session)
     db.flush()
-    return user_session, raw_token
+    return user_session, raw_token, csrf_token
+
+
+def verify_csrf_token(user_session: UserSession, raw_token: str | None) -> bool:
+    if not raw_token or len(raw_token) > 256:
+        return False
+    return hmac.compare_digest(user_session.csrf_token_hash, _hash_token(raw_token))
 
 
 def authenticate_user_session(

@@ -26,7 +26,14 @@ def test_auth_models_have_required_security_fields() -> None:
         "last_login_at",
     }.issubset(User.__table__.columns.keys())
     assert {"user_id", "shop_id"}.issubset(UserShopAccess.__table__.columns.keys())
-    assert {"id", "token_hash", "user_id", "expires_at", "revoked_at"}.issubset(
+    assert {
+        "id",
+        "token_hash",
+        "csrf_token_hash",
+        "user_id",
+        "expires_at",
+        "revoked_at",
+    }.issubset(
         UserSession.__table__.columns.keys()
     )
     assert {"actor_user_id", "action", "result", "metadata_json"}.issubset(
@@ -112,3 +119,4 @@ def test_migration_adds_temporary_password_flag_safely() -> None:
     assert "20261106_015_require_temporary_password_change" in source
     assert "must_change_password BOOLEAN NOT NULL DEFAULT FALSE" in source
     assert "20261106_016_add_login_throttling" in source
+    assert "20261106_017_add_session_csrf_token" in source

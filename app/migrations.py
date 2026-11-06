@@ -512,6 +512,17 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261106_017_add_session_csrf_token",
+        (
+            "ALTER TABLE auth_sessions ADD COLUMN IF NOT EXISTS csrf_token_hash VARCHAR(64)",
+            (
+                "UPDATE auth_sessions SET csrf_token_hash = repeat('0', 64) "
+                "WHERE csrf_token_hash IS NULL"
+            ),
+            "ALTER TABLE auth_sessions ALTER COLUMN csrf_token_hash SET NOT NULL",
+        ),
+    ),
 )
 
 

@@ -15,6 +15,7 @@ from starlette.background import BackgroundTask
 
 from app.audit import list_audit_logs
 from app.auth import (
+    CSRF_COOKIE_NAME,
     SESSION_COOKIE_NAME,
     InvalidCurrentPasswordError,
     ReusedPasswordError,
@@ -26,6 +27,7 @@ from app.auth import (
     login_retry_after,
     record_login_failure,
     revoke_user_session,
+    verify_csrf_token,
 )
 from app.authorization import (
     authorized_shop_ids,
@@ -160,9 +162,23 @@ async def security_headers(request: Request, call_next):
                 content={"detail": "Bạn cần đăng nhập để sử dụng DataHub."},
             )
             response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+            response.delete_cookie(CSRF_COOKIE_NAME, path="/")
             return _add_security_headers(response)
         request.state.current_user = authenticated.user
         request.state.auth_session_id = authenticated.session.id
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"} and not verify_csrf_token(
+            authenticated.session,
+            request.headers.get("X-CSRF-Token"),
+        ):
+            return _add_security_headers(
+                JSONResponse(
+                    status_code=403,
+                    content={
+                        "detail": "Phiên bảo mật không hợp lệ. Hãy tải lại trang.",
+                        "code": "csrf_failed",
+                    },
+                )
+            )
         if authenticated.user.must_change_password and request.url.path not in {
             "/api/auth/me",
             "/api/auth/logout",
@@ -258,7 +274,7 @@ def login(request: Request, payload: LoginRequest, response: Response) -> dict:
 
             user.password_hash = hash_password(payload.password)
         user.last_login_at = datetime.now(UTC)
-        user_session, raw_token = create_user_session(
+        user_session, raw_token, csrf_token = create_user_session(
             session,
             user_id=user.id,
             session_hours=settings.auth_session_hours,
@@ -281,6 +297,15 @@ def login(request: Request, payload: LoginRequest, response: Response) -> dict:
         raw_token,
         max_age=settings.auth_session_hours * 3600,
         httponly=True,
+        secure=settings.auth_cookie_secure,
+        samesite="strict",
+        path="/",
+    )
+    response.set_cookie(
+        CSRF_COOKIE_NAME,
+        csrf_token,
+        max_age=settings.auth_session_hours * 3600,
+        httponly=False,
         secure=settings.auth_cookie_secure,
         samesite="strict",
         path="/",
@@ -310,6 +335,7 @@ def logout(request: Request, response: Response) -> dict[str, str]:
         )
         session.commit()
     response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    response.delete_cookie(CSRF_COOKIE_NAME, path="/")
     return {"status": "logged_out"}
 
 

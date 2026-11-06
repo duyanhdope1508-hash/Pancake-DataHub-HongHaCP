@@ -14,6 +14,7 @@ from app.auth import (
     login_throttle_key,
     record_login_failure,
     revoke_user_session,
+    verify_csrf_token,
 )
 from app.models import LoginThrottle, User, UserSession
 from app.security import hash_password, verify_password
@@ -22,11 +23,17 @@ from app.security import hash_password, verify_password
 def test_create_session_stores_only_token_hash() -> None:
     db = Mock()
 
-    user_session, raw_token = create_user_session(db, user_id="user-1", session_hours=12)
+    user_session, raw_token, csrf_token = create_user_session(
+        db, user_id="user-1", session_hours=12
+    )
 
     assert raw_token.startswith(f"{user_session.id}.")
     assert raw_token != user_session.token_hash
     assert len(user_session.token_hash) == 64
+    assert len(user_session.csrf_token_hash) == 64
+    assert csrf_token != user_session.csrf_token_hash
+    assert verify_csrf_token(user_session, csrf_token) is True
+    assert verify_csrf_token(user_session, "tampered") is False
     assert user_session.expires_at > user_session.created_at
     db.add.assert_called_once_with(user_session)
     db.flush.assert_called_once_with()
@@ -34,7 +41,7 @@ def test_create_session_stores_only_token_hash() -> None:
 
 def test_authenticate_session_accepts_valid_token_and_rejects_tampering() -> None:
     creating_db = Mock()
-    user_session, raw_token = create_user_session(
+    user_session, raw_token, _csrf_token = create_user_session(
         creating_db,
         user_id="user-1",
         session_hours=12,
@@ -84,7 +91,7 @@ def test_authenticate_session_rejects_expired_access() -> None:
 
 def test_revoke_session_only_accepts_matching_token() -> None:
     creating_db = Mock()
-    user_session, raw_token = create_user_session(
+    user_session, raw_token, _csrf_token = create_user_session(
         creating_db,
         user_id="user-1",
         session_hours=12,
