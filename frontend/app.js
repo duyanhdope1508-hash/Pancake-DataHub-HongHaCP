@@ -126,6 +126,7 @@ const AUDIT_ACTION_LABELS = {
   "staff.update": "Sửa nhân viên",
   "orders.sync": "Đồng bộ đơn",
   "orders.export": "Xuất Excel",
+  "orders.view_detail": "Xem chi tiết đơn",
 };
 
 const filterElements = {
@@ -789,6 +790,29 @@ function auditResultLabel(result) {
   }[result] || text(result);
 }
 
+function auditDevice(userAgent) {
+  if (!userAgent) return "Không xác định";
+  const browser = userAgent.includes("Edg/")
+    ? "Edge"
+    : userAgent.includes("Firefox/")
+      ? "Firefox"
+      : userAgent.includes("Chrome/")
+        ? "Chrome"
+        : userAgent.includes("Safari/")
+          ? "Safari"
+          : "Trình duyệt khác";
+  const platform = userAgent.includes("Windows")
+    ? "Windows"
+    : userAgent.includes("Android")
+      ? "Android"
+      : userAgent.includes("iPhone") || userAgent.includes("iPad")
+        ? "iPhone/iPad"
+        : userAgent.includes("Mac OS")
+          ? "macOS"
+          : "Thiết bị khác";
+  return `${browser} · ${platform}`;
+}
+
 function renderAuditLog(data) {
   const rows = data.items.map((item) => {
     const row = document.createElement("tr");
@@ -797,6 +821,13 @@ function renderAuditLog(data) {
     actorCell.append(
       createElement("strong", "", actor),
       createElement("span", "secondary-text", item.actor_username ? `@${item.actor_username}` : ""),
+    );
+    const originCell = createElement("td", "audit-origin");
+    const device = createElement("span", "", auditDevice(item.user_agent));
+    device.title = item.user_agent || "";
+    originCell.append(
+      createElement("strong", "", item.ip_address || "Không xác định"),
+      device,
     );
     row.append(
       createElement("td", "", formatDate(item.created_at)),
@@ -807,6 +838,7 @@ function renderAuditLog(data) {
         `audit-result audit-result-${item.result}`,
         auditResultLabel(item.result),
       ),
+      originCell,
       createElement("td", "audit-detail", auditDetail(item)),
     );
     return row;

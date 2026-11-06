@@ -46,6 +46,8 @@ def list_audit_logs(
                 "resource_id": audit_log.resource_id,
                 "result": audit_log.result,
                 "metadata": audit_log.metadata_json,
+                "ip_address": audit_log.ip_address,
+                "user_agent": audit_log.user_agent,
                 "created_at": audit_log.created_at,
             }
             for audit_log, username, display_name in rows

@@ -567,7 +567,7 @@ body {
 }
 
 .audit-table {
-  min-width: 860px;
+  min-width: 1040px;
 }
 
 .audit-table th,
@@ -624,6 +624,27 @@ body {
 .audit-detail {
   color: var(--muted);
   line-height: 1.45;
+}
+
+.audit-origin {
+  width: 155px;
+}
+
+.audit-origin strong,
+.audit-origin span {
+  display: block;
+}
+
+.audit-origin strong {
+  color: var(--ink);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 10px;
+}
+
+.audit-origin span {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .audit-pagination {

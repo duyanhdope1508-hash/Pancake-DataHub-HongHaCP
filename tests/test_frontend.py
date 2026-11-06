@@ -81,6 +81,9 @@ def test_admin_can_filter_and_page_through_audit_log() -> None:
         assert element_id in html
     assert "/api/admin/audit-logs" in javascript
     assert "AUDIT_ACTION_LABELS" in javascript
+    assert '"orders.view_detail": "Xem chi tiết đơn"' in javascript
+    assert "item.ip_address" in javascript
+    assert "auditDevice(item.user_agent)" in javascript
     assert "user.role !== \"admin\"" in javascript
 
 

@@ -52,6 +52,19 @@ def test_sensitive_responses_have_browser_security_headers() -> None:
     assert "camera=()" in response.headers["Permissions-Policy"]
 
 
+def test_audit_client_uses_server_observed_ip_and_bounds_user_agent() -> None:
+    request = SimpleNamespace(
+        client=SimpleNamespace(host="192.0.2.10"),
+        headers={"user-agent": "browser/1.0 " + ("x" * 600)},
+    )
+
+    ip_address, user_agent = main._audit_client(request)
+
+    assert ip_address == "192.0.2.10"
+    assert user_agent is not None
+    assert len(user_agent) == 512
+
+
 @pytest.mark.asyncio
 async def test_manual_sync_returns_safe_summary(monkeypatch) -> None:
     async def fake_run_cycle(_settings) -> dict:

@@ -523,6 +523,12 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             "ALTER TABLE auth_sessions ALTER COLUMN csrf_token_hash SET NOT NULL",
         ),
     ),
+    (
+        "20261106_018_add_audit_user_agent",
+        (
+            "ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS user_agent VARCHAR(512)",
+        ),
+    ),
 )
 
 

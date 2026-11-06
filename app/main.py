@@ -139,23 +139,37 @@ def _add_security_headers(
 
 def _record_audit(
     *,
+    request: Request,
     actor_user_id: str,
     action: str,
     resource_type: str,
     result: str,
     metadata: dict,
+    resource_id: str | None = None,
 ) -> None:
+    ip_address, user_agent = _audit_client(request)
     with SessionLocal() as session:
         session.add(
             AuditLog(
                 actor_user_id=actor_user_id,
                 action=action,
                 resource_type=resource_type,
+                resource_id=resource_id,
                 result=result,
                 metadata_json=metadata,
+                ip_address=ip_address,
+                user_agent=user_agent,
             )
         )
         session.commit()
+
+
+def _audit_client(request: Request) -> tuple[str | None, str | None]:
+    client = request.client
+    ip_address = client.host[:64] if client and client.host else None
+    raw_user_agent = request.headers.get("user-agent", "").strip()
+    user_agent = raw_user_agent[:512] or None
+    return ip_address, user_agent
 
 
 @lru_cache(maxsize=128)
@@ -248,13 +262,14 @@ def login(request: Request, payload: LoginRequest, response: Response) -> dict:
     except ValueError:
         username = ""
     throttle_username = username or payload.username.strip().lower()[:128]
-    ip_address = request.client.host if request.client else "unknown"
+    ip_address, user_agent = _audit_client(request)
+    throttle_ip = ip_address or "unknown"
 
     with SessionLocal() as session:
         retry_after = login_retry_after(
             session,
             username=throttle_username,
-            ip_address=ip_address,
+            ip_address=throttle_ip,
         )
         if retry_after:
             raise HTTPException(
@@ -271,7 +286,7 @@ def login(request: Request, payload: LoginRequest, response: Response) -> dict:
             record_login_failure(
                 session,
                 username=throttle_username,
-                ip_address=ip_address,
+                ip_address=throttle_ip,
                 max_failures=settings.auth_login_max_failures,
                 window_seconds=settings.auth_login_window_seconds,
                 lock_seconds=settings.auth_login_lock_seconds,
@@ -283,6 +298,7 @@ def login(request: Request, payload: LoginRequest, response: Response) -> dict:
                     result="denied",
                     metadata_json={"username": username},
                     ip_address=ip_address,
+                    user_agent=user_agent,
                 )
             )
             session.commit()
@@ -291,7 +307,7 @@ def login(request: Request, payload: LoginRequest, response: Response) -> dict:
         clear_login_failures(
             session,
             username=throttle_username,
-            ip_address=ip_address,
+            ip_address=throttle_ip,
         )
         if password_needs_rehash(user.password_hash):
             from app.security import hash_password
@@ -312,6 +328,7 @@ def login(request: Request, payload: LoginRequest, response: Response) -> dict:
                 result="success",
                 metadata_json={},
                 ip_address=ip_address,
+                user_agent=user_agent,
             )
         )
         session.commit()
@@ -345,6 +362,7 @@ def current_user(request: Request) -> dict:
 @app.post("/api/auth/logout")
 def logout(request: Request, response: Response) -> dict[str, str]:
     raw_token = request.cookies.get(SESSION_COOKIE_NAME)
+    ip_address, user_agent = _audit_client(request)
     with SessionLocal() as session:
         revoke_user_session(session, raw_token)
         session.add(
@@ -355,6 +373,8 @@ def logout(request: Request, response: Response) -> dict[str, str]:
                 resource_id=request.state.auth_session_id,
                 result="success",
                 metadata_json={},
+                ip_address=ip_address,
+                user_agent=user_agent,
             )
         )
         session.commit()
@@ -366,6 +386,7 @@ def logout(request: Request, response: Response) -> dict[str, str]:
 @app.post("/api/auth/change-password")
 def change_password(request: Request, payload: ChangePasswordRequest) -> dict[str, str]:
     actor = request.state.current_user
+    ip_address, user_agent = _audit_client(request)
     with SessionLocal() as session:
         try:
             user = change_user_password(
@@ -386,6 +407,8 @@ def change_password(request: Request, payload: ChangePasswordRequest) -> dict[st
                 resource_id=user.id,
                 result="success",
                 metadata_json={},
+                ip_address=ip_address,
+                user_agent=user_agent,
             )
         )
         session.commit()
@@ -433,6 +456,7 @@ def admin_create_staff(request: Request, payload: CreateStaffRequest) -> dict:
     from app.security import generate_temporary_password
 
     temporary_password = generate_temporary_password()
+    ip_address, user_agent = _audit_client(request)
     with SessionLocal() as session:
         try:
             user = create_staff(
@@ -453,6 +477,8 @@ def admin_create_staff(request: Request, payload: CreateStaffRequest) -> dict:
                 resource_id=user.id,
                 result="success",
                 metadata_json={"shop_count": len(payload.shop_ids)},
+                ip_address=ip_address,
+                user_agent=user_agent,
             )
         )
         session.commit()
@@ -475,6 +501,7 @@ def admin_update_staff(
     from app.security import generate_temporary_password
 
     temporary_password = generate_temporary_password() if payload.reset_password else None
+    ip_address, user_agent = _audit_client(request)
     with SessionLocal() as session:
         try:
             user = update_staff(
@@ -500,6 +527,8 @@ def admin_update_staff(
                     "password_changed": payload.reset_password,
                     "shop_count": len(payload.shop_ids),
                 },
+                ip_address=ip_address,
+                user_agent=user_agent,
             )
         )
         session.commit()
@@ -525,6 +554,7 @@ async def sync_now(request: Request) -> dict:
     result = await run_cycle(get_settings())
     if result["status"] == "skipped":
         _record_audit(
+            request=request,
             actor_user_id=actor.id,
             action="orders.sync",
             resource_type="sync",
@@ -540,6 +570,7 @@ async def sync_now(request: Request) -> dict:
     transform_result = result["transform"]
     _cached_order_filters.cache_clear()
     _record_audit(
+        request=request,
         actor_user_id=actor.id,
         action="orders.sync",
         resource_type="sync",
@@ -722,6 +753,7 @@ def export_orders(
                 ),
             ) from exc
     _record_audit(
+        request=request,
         actor_user_id=request.state.current_user.id,
         action="orders.export",
         resource_type="orders",
@@ -749,7 +781,7 @@ def order_detail(
     with SessionLocal() as session:
         allowed_shop_ids = authorized_shop_ids(session, request.state.current_user)
         try:
-            return get_order_detail(
+            detail = get_order_detail(
                 session,
                 order_id=order_id,
                 shop_id=shop_id,
@@ -764,4 +796,14 @@ def order_detail(
                 status_code=409,
                 detail="Order ID exists in multiple shops; provide shop_id",
             ) from exc
+    _record_audit(
+        request=request,
+        actor_user_id=request.state.current_user.id,
+        action="orders.view_detail",
+        resource_type="order",
+        resource_id=f"{detail['shop_id']}:{detail['order_id']}",
+        result="success",
+        metadata={"shop_id": detail["shop_id"]},
+    )
+    return detail
 

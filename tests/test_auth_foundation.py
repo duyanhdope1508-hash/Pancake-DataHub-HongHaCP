@@ -37,7 +37,14 @@ def test_auth_models_have_required_security_fields() -> None:
     }.issubset(
         UserSession.__table__.columns.keys()
     )
-    assert {"actor_user_id", "action", "result", "metadata_json"}.issubset(
+    assert {
+        "actor_user_id",
+        "action",
+        "result",
+        "metadata_json",
+        "ip_address",
+        "user_agent",
+    }.issubset(
         AuditLog.__table__.columns.keys()
     )
     assert {"key_hash", "failure_count", "blocked_until", "updated_at"}.issubset(
@@ -130,3 +137,4 @@ def test_migration_adds_temporary_password_flag_safely() -> None:
     assert "must_change_password BOOLEAN NOT NULL DEFAULT FALSE" in source
     assert "20261106_016_add_login_throttling" in source
     assert "20261106_017_add_session_csrf_token" in source
+    assert "20261106_018_add_audit_user_agent" in source

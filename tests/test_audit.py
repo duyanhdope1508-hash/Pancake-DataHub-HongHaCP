@@ -16,6 +16,8 @@ def test_audit_log_listing_is_paginated_and_safe() -> None:
         resource_id=None,
         result="success",
         metadata_json={"order_count": 12},
+        ip_address="192.0.2.25",
+        user_agent="Mozilla/5.0 Chrome/130.0 Windows",
         created_at=datetime(2026, 11, 6, 8, 0, tzinfo=UTC),
     )
     session.execute.return_value.all.return_value = [
@@ -44,6 +46,8 @@ def test_audit_log_listing_is_paginated_and_safe() -> None:
         "resource_id": None,
         "result": "success",
         "metadata": {"order_count": 12},
+        "ip_address": "192.0.2.25",
+        "user_agent": "Mozilla/5.0 Chrome/130.0 Windows",
         "created_at": datetime(2026, 11, 6, 8, 0, tzinfo=UTC),
     }
 
