@@ -559,6 +559,11 @@ def admin_audit_logs(
     page_number: int = Query(default=1, ge=1),
     page_size: int = Query(default=50, ge=1, le=100),
     action: str | None = Query(default=None, max_length=128),
+    actor_user_id: str | None = Query(default=None, max_length=36),
+    result: str | None = Query(default=None, max_length=32),
+    ip_address: str | None = Query(default=None, max_length=64),
+    date_from: Annotated[datetime | None, Query()] = None,
+    date_to: Annotated[datetime | None, Query()] = None,
 ) -> dict:
     require_admin(request.state.current_user)
     with SessionLocal() as session:
@@ -567,6 +572,11 @@ def admin_audit_logs(
             page_number=page_number,
             page_size=page_size,
             action=action,
+            actor_user_id=actor_user_id,
+            result=result,
+            ip_address=ip_address,
+            date_from=date_from,
+            date_to=date_to,
         )
 
 

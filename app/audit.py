@@ -159,11 +159,26 @@ def list_audit_logs(
     page_number: int = 1,
     page_size: int = 50,
     action: str | None = None,
+    actor_user_id: str | None = None,
+    result: str | None = None,
+    ip_address: str | None = None,
+    date_from: datetime | None = None,
+    date_to: datetime | None = None,
 ) -> dict[str, Any]:
     actor = aliased(User)
     filters = []
     if action:
         filters.append(AuditLog.action == action)
+    if actor_user_id:
+        filters.append(AuditLog.actor_user_id == actor_user_id)
+    if result:
+        filters.append(AuditLog.result == result)
+    if ip_address:
+        filters.append(AuditLog.ip_address == ip_address.strip())
+    if date_from:
+        filters.append(AuditLog.created_at >= date_from)
+    if date_to:
+        filters.append(AuditLog.created_at <= date_to)
 
     total = session.scalar(
         select(func.count()).select_from(AuditLog).where(*filters)
@@ -179,6 +194,20 @@ def list_audit_logs(
     actions = list(
         session.scalars(
             select(AuditLog.action).distinct().order_by(AuditLog.action)
+        ).all()
+    )
+    actors = session.execute(
+        select(User.id, User.username, User.display_name)
+        .where(
+            select(1)
+            .where(AuditLog.actor_user_id == User.id)
+            .exists()
+        )
+        .order_by(User.display_name, User.username)
+    ).all()
+    results = list(
+        session.scalars(
+            select(AuditLog.result).distinct().order_by(AuditLog.result)
         ).all()
     )
 
@@ -200,6 +229,11 @@ def list_audit_logs(
             for audit_log, username, display_name in rows
         ],
         "actions": actions,
+        "actors": [
+            {"user_id": user_id, "username": username, "display_name": display_name}
+            for user_id, username, display_name in actors
+        ],
+        "results": results,
         "pagination": {
             "page_number": page_number,
             "page_size": page_size,

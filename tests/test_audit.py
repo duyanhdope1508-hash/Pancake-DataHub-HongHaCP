@@ -97,8 +97,9 @@ def test_audit_log_listing_is_paginated_and_safe() -> None:
         user_agent="Mozilla/5.0 Chrome/130.0 Windows",
         created_at=datetime(2026, 11, 6, 8, 0, tzinfo=UTC),
     )
-    session.execute.return_value.all.return_value = [
-        (audit_log, "admin", "Daniel Ng")
+    session.execute.side_effect = [
+        Mock(all=Mock(return_value=[(audit_log, "admin", "Daniel Ng")])),
+        Mock(all=Mock(return_value=[("user-1", "admin", "Daniel Ng")])),
     ]
     session.scalars.return_value.all.return_value = [
         "auth.login",
@@ -114,6 +115,10 @@ def test_audit_log_listing_is_paginated_and_safe() -> None:
         "total_pages": 1,
     }
     assert result["actions"] == ["auth.login", "orders.export"]
+    assert result["actors"] == [
+        {"user_id": "user-1", "username": "admin", "display_name": "Daniel Ng"}
+    ]
+    assert result["results"] == ["auth.login", "orders.export"]
     assert result["items"][0] == {
         "id": "audit-1",
         "actor_username": "admin",
@@ -132,7 +137,10 @@ def test_audit_log_listing_is_paginated_and_safe() -> None:
 def test_audit_log_listing_supports_action_filter() -> None:
     session = Mock()
     session.scalar.return_value = 0
-    session.execute.return_value.all.return_value = []
+    session.execute.side_effect = [
+        Mock(all=Mock(return_value=[])),
+        Mock(all=Mock(return_value=[])),
+    ]
     session.scalars.return_value.all.return_value = ["staff.update"]
 
     result = list_audit_logs(
@@ -140,6 +148,11 @@ def test_audit_log_listing_supports_action_filter() -> None:
         page_number=2,
         page_size=25,
         action="staff.update",
+        actor_user_id="staff-1",
+        result="success",
+        ip_address="192.0.2.1",
+        date_from=datetime(2026, 11, 1, tzinfo=UTC),
+        date_to=datetime(2026, 11, 6, tzinfo=UTC),
     )
 
     assert result["items"] == []

@@ -75,6 +75,13 @@ def test_admin_can_filter_and_page_through_audit_log() -> None:
         'id="auditLogButton"',
         'id="auditDialog"',
         'id="auditActionFilter"',
+        'id="auditActorFilter"',
+        'id="auditResultFilter"',
+        'id="auditIpFilter"',
+        'id="auditDateFrom"',
+        'id="auditDateTo"',
+        'id="applyAuditFilters"',
+        'id="resetAuditFilters"',
         'id="auditBody"',
         'id="previousAuditPage"',
         'id="nextAuditPage"',
@@ -86,6 +93,9 @@ def test_admin_can_filter_and_page_through_audit_log() -> None:
     assert '"orders.view_detail.daily": "Tổng hợp lượt xem đơn"' in javascript
     assert "item.ip_address" in javascript
     assert "auditDevice(item.user_agent)" in javascript
+    assert 'params.set("actor_user_id"' in javascript
+    assert 'params.set("ip_address"' in javascript
+    assert 'params.set("date_from"' in javascript
     assert "user.role !== \"admin\"" in javascript
 
 

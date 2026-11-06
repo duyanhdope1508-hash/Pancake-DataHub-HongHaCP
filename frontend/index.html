@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=22" />
-    <script src="/assets/app.js?v=24" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=25" />
+    <script src="/assets/app.js?v=25" defer></script>
   </head>
   <body>
     <main id="loginShell" class="login-shell" hidden>
@@ -367,6 +367,34 @@
               <option value="">Tất cả hoạt động</option>
             </select>
           </label>
+          <label>
+            <span>Người thực hiện</span>
+            <select id="auditActorFilter">
+              <option value="">Tất cả tài khoản</option>
+            </select>
+          </label>
+          <label>
+            <span>Kết quả</span>
+            <select id="auditResultFilter">
+              <option value="">Tất cả kết quả</option>
+            </select>
+          </label>
+          <label>
+            <span>Địa chỉ IP</span>
+            <input id="auditIpFilter" type="search" maxlength="64" placeholder="Ví dụ: 192.168.1.10" />
+          </label>
+          <label>
+            <span>Từ thời điểm</span>
+            <input id="auditDateFrom" type="datetime-local" />
+          </label>
+          <label>
+            <span>Đến thời điểm</span>
+            <input id="auditDateTo" type="datetime-local" />
+          </label>
+          <div class="audit-toolbar-actions">
+            <button id="applyAuditFilters" class="primary-button" type="button">Lọc nhật ký</button>
+            <button id="resetAuditFilters" class="secondary-button" type="button">Xóa lọc</button>
+          </div>
           <button id="refreshAuditLog" class="secondary-button" type="button">Làm mới</button>
         </div>
         <div class="audit-table-wrap">

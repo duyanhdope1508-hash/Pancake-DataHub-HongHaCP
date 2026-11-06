@@ -60,6 +60,13 @@ const elements = {
   auditDialog: document.querySelector("#auditDialog"),
   closeAuditDialog: document.querySelector("#closeAuditDialog"),
   auditActionFilter: document.querySelector("#auditActionFilter"),
+  auditActorFilter: document.querySelector("#auditActorFilter"),
+  auditResultFilter: document.querySelector("#auditResultFilter"),
+  auditIpFilter: document.querySelector("#auditIpFilter"),
+  auditDateFrom: document.querySelector("#auditDateFrom"),
+  auditDateTo: document.querySelector("#auditDateTo"),
+  applyAuditFilters: document.querySelector("#applyAuditFilters"),
+  resetAuditFilters: document.querySelector("#resetAuditFilters"),
   refreshAuditLog: document.querySelector("#refreshAuditLog"),
   auditBody: document.querySelector("#auditBody"),
   auditEmpty: document.querySelector("#auditEmpty"),
@@ -369,6 +376,11 @@ function showLogin(message = "") {
   elements.staffShopOptions.replaceChildren();
   elements.auditBody.replaceChildren();
   elements.auditActionFilter.value = "";
+  elements.auditActorFilter.value = "";
+  elements.auditResultFilter.value = "";
+  elements.auditIpFilter.value = "";
+  elements.auditDateFrom.value = "";
+  elements.auditDateTo.value = "";
   elements.filterForm.reset();
   for (const summaryElement of [
     elements.totalOrders,
@@ -864,6 +876,8 @@ function renderAuditLog(data) {
   elements.auditEmpty.hidden = rows.length !== 0;
 
   const selectedAction = elements.auditActionFilter.value;
+  const selectedActor = elements.auditActorFilter.value;
+  const selectedResult = elements.auditResultFilter.value;
   const actionOptions = [createElement("option", "", "Tất cả hoạt động")];
   actionOptions[0].value = "";
   for (const action of data.actions) {
@@ -873,6 +887,27 @@ function renderAuditLog(data) {
   }
   elements.auditActionFilter.replaceChildren(...actionOptions);
   elements.auditActionFilter.value = selectedAction;
+
+  const actorOptions = [createElement("option", "", "Tất cả tài khoản")];
+  actorOptions[0].value = "";
+  for (const actor of data.actors) {
+    const label = `${actor.display_name || actor.username} · @${actor.username}`;
+    const option = createElement("option", "", label);
+    option.value = actor.user_id;
+    actorOptions.push(option);
+  }
+  elements.auditActorFilter.replaceChildren(...actorOptions);
+  elements.auditActorFilter.value = selectedActor;
+
+  const resultOptions = [createElement("option", "", "Tất cả kết quả")];
+  resultOptions[0].value = "";
+  for (const result of data.results) {
+    const option = createElement("option", "", auditResultLabel(result));
+    option.value = result;
+    resultOptions.push(option);
+  }
+  elements.auditResultFilter.replaceChildren(...resultOptions);
+  elements.auditResultFilter.value = selectedResult;
 
   const pagination = data.pagination;
   state.auditPageNumber = pagination.page_number;
@@ -884,12 +919,35 @@ function renderAuditLog(data) {
 
 async function loadAuditLog() {
   elements.auditError.textContent = "";
+  if (
+    elements.auditDateFrom.value &&
+    elements.auditDateTo.value &&
+    elements.auditDateFrom.value > elements.auditDateTo.value
+  ) {
+    elements.auditError.textContent = "Thời điểm bắt đầu phải trước thời điểm kết thúc.";
+    return;
+  }
   const params = new URLSearchParams({
     page_number: String(state.auditPageNumber),
     page_size: "50",
   });
   if (elements.auditActionFilter.value) {
     params.set("action", elements.auditActionFilter.value);
+  }
+  if (elements.auditActorFilter.value) {
+    params.set("actor_user_id", elements.auditActorFilter.value);
+  }
+  if (elements.auditResultFilter.value) {
+    params.set("result", elements.auditResultFilter.value);
+  }
+  if (elements.auditIpFilter.value.trim()) {
+    params.set("ip_address", elements.auditIpFilter.value.trim());
+  }
+  if (elements.auditDateFrom.value) {
+    params.set("date_from", new Date(elements.auditDateFrom.value).toISOString());
+  }
+  if (elements.auditDateTo.value) {
+    params.set("date_to", new Date(elements.auditDateTo.value).toISOString());
   }
   try {
     renderAuditLog(await fetchJson(`/api/admin/audit-logs?${params.toString()}`));
@@ -902,6 +960,17 @@ async function openAuditLog() {
   state.auditPageNumber = 1;
   elements.auditDialog.showModal();
   await loadAuditLog();
+}
+
+function resetAuditFilters() {
+  elements.auditActionFilter.value = "";
+  elements.auditActorFilter.value = "";
+  elements.auditResultFilter.value = "";
+  elements.auditIpFilter.value = "";
+  elements.auditDateFrom.value = "";
+  elements.auditDateTo.value = "";
+  state.auditPageNumber = 1;
+  loadAuditLog();
 }
 
 function addOption(select, value, label) {
@@ -1419,9 +1488,17 @@ elements.closeAuditDialog.addEventListener("click", () => elements.auditDialog.c
 elements.auditDialog.addEventListener("click", (event) => {
   if (event.target === elements.auditDialog) elements.auditDialog.close();
 });
-elements.auditActionFilter.addEventListener("change", () => {
+elements.applyAuditFilters.addEventListener("click", () => {
   state.auditPageNumber = 1;
   loadAuditLog();
+});
+elements.resetAuditFilters.addEventListener("click", resetAuditFilters);
+elements.auditIpFilter.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    state.auditPageNumber = 1;
+    loadAuditLog();
+  }
 });
 elements.refreshAuditLog.addEventListener("click", loadAuditLog);
 elements.previousAuditPage.addEventListener("click", () => {

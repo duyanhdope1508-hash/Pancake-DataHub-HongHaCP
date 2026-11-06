@@ -531,9 +531,9 @@ body {
 }
 
 .audit-toolbar {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
   align-items: end;
-  justify-content: space-between;
   gap: 12px;
   margin-bottom: 14px;
 }
@@ -546,14 +546,29 @@ body {
   font-weight: 750;
 }
 
-.audit-toolbar select {
-  min-width: 230px;
+.audit-toolbar select,
+.audit-toolbar input {
+  width: 100%;
   min-height: 38px;
   padding: 0 32px 0 10px;
   border: 1px solid var(--line);
   border-radius: 5px;
   background: #fff;
   color: var(--ink);
+}
+
+.audit-toolbar input {
+  padding: 0 10px;
+}
+
+.audit-toolbar-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.audit-toolbar-actions button {
+  flex: 1 1 auto;
+  min-height: 38px;
 }
 
 .audit-toolbar .secondary-button {
@@ -663,8 +678,7 @@ body {
 
 @media (max-width: 600px) {
   .audit-toolbar {
-    align-items: stretch;
-    flex-direction: column;
+    grid-template-columns: 1fr;
   }
 
   .audit-toolbar select {
