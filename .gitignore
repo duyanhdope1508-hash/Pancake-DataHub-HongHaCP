@@ -1,4 +1,6 @@
 .env
+.env.production
+backups/
 secrets/*.json
 secrets/*.tmp
 !secrets/*.example.json

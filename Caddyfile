@@ -1,0 +1,20 @@
+{
+	email {$ACME_EMAIL}
+	admin off
+}
+
+{$DATAHUB_DOMAIN} {
+	encode zstd gzip
+	header -Server
+
+	request_body {
+		max_size 20MB
+	}
+
+	reverse_proxy api:8000 {
+		health_uri /health
+		health_interval 30s
+		health_timeout 5s
+	}
+}
+

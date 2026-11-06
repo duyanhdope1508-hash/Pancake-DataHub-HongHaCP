@@ -1,0 +1,179 @@
+x-app-environment: &app-environment
+  DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-pancake_app}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}@db:5432/${POSTGRES_DB:-pancake_data}
+  PANCAKE_API_BASE_URL: ${PANCAKE_API_BASE_URL:-https://pos.pages.fm/api/v1}
+  PANCAKE_API_KEY: ${PANCAKE_API_KEY:-}
+  PANCAKE_SHOP_IDS: ${PANCAKE_SHOP_IDS:-}
+  PANCAKE_CONNECTORS_FILE: ${PANCAKE_CONNECTORS_FILE:-secrets/pancake_connectors.json}
+  PANCAKE_PAGES_CONNECTORS_FILE: ${PANCAKE_PAGES_CONNECTORS_FILE:-secrets/pancake_pages_connectors.json}
+  PANCAKE_PAGE_SIZE: ${PANCAKE_PAGE_SIZE:-100}
+  PANCAKE_START_PAGE: ${PANCAKE_START_PAGE:-1}
+  PANCAKE_MAX_PAGES: ${PANCAKE_MAX_PAGES:-1}
+  PANCAKE_SYNC_CONCURRENCY: ${PANCAKE_SYNC_CONCURRENCY:-4}
+  PANCAKE_RESUME_BACKFILL: ${PANCAKE_RESUME_BACKFILL:-false}
+  PANCAKE_SYNC_INTERVAL_SECONDS: ${PANCAKE_SYNC_INTERVAL_SECONDS:-300}
+
+x-container-logging: &container-logging
+  driver: json-file
+  options:
+    max-size: 10m
+    max-file: "5"
+
+services:
+  db:
+    image: postgres:17.8-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-pancake_data}
+      POSTGRES_USER: ${POSTGRES_USER:-pancake_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging: *container-logging
+    mem_limit: 1536m
+    cpus: 1.5
+    pids_limit: 256
+    stop_grace_period: 1m
+
+  api:
+    image: pancake-data-hub:${APP_VERSION:-production}
+    build:
+      context: .
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *app-environment
+      AUTH_SESSION_HOURS: ${AUTH_SESSION_HOURS:-12}
+      AUTH_COOKIE_SECURE: "true"
+      TRUSTED_HOSTS: ${DATAHUB_DOMAIN:?Set DATAHUB_DOMAIN in .env.production},api,localhost,127.0.0.1
+      AUTH_LOGIN_MAX_FAILURES: ${AUTH_LOGIN_MAX_FAILURES:-5}
+      AUTH_LOGIN_WINDOW_SECONDS: ${AUTH_LOGIN_WINDOW_SECONDS:-900}
+      AUTH_LOGIN_LOCK_SECONDS: ${AUTH_LOGIN_LOCK_SECONDS:-900}
+      AUTH_STAFF_MAX_SESSIONS: ${AUTH_STAFF_MAX_SESSIONS:-2}
+      STAFF_ORDER_ROWS_PER_HOUR: ${STAFF_ORDER_ROWS_PER_HOUR:-2000}
+      STAFF_ORDER_DETAILS_PER_HOUR: ${STAFF_ORDER_DETAILS_PER_HOUR:-120}
+      ADMIN_ORDER_ROWS_PER_HOUR: ${ADMIN_ORDER_ROWS_PER_HOUR:-20000}
+      ADMIN_ORDER_DETAILS_PER_HOUR: ${ADMIN_ORDER_DETAILS_PER_HOUR:-1200}
+      STAFF_EXPORTS_PER_HOUR: ${STAFF_EXPORTS_PER_HOUR:-5}
+      STAFF_EXPORT_ROWS_PER_DAY: ${STAFF_EXPORT_ROWS_PER_DAY:-2000}
+      AUDIT_DETAIL_DEDUP_SECONDS: ${AUDIT_DETAIL_DEDUP_SECONDS:-600}
+      AUDIT_DETAIL_RETENTION_DAYS: ${AUDIT_DETAIL_RETENTION_DAYS:-90}
+      AUDIT_GENERAL_RETENTION_DAYS: ${AUDIT_GENERAL_RETENTION_DAYS:-365}
+      AUDIT_CLEANUP_INTERVAL_SECONDS: ${AUDIT_CLEANUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - ./secrets:/app/secrets:ro
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    networks:
+      - proxy
+      - data
+    depends_on:
+      db:
+        condition: service_healthy
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --proxy-headers
+      - --forwarded-allow-ips=*
+      - --no-server-header
+      - --no-access-log
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    logging: *container-logging
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
+    stop_grace_period: 30s
+
+  worker:
+    image: pancake-data-hub:${APP_VERSION:-production}
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *app-environment
+      AUDIT_DETAIL_RETENTION_DAYS: ${AUDIT_DETAIL_RETENTION_DAYS:-90}
+      AUDIT_GENERAL_RETENTION_DAYS: ${AUDIT_GENERAL_RETENTION_DAYS:-365}
+      AUDIT_CLEANUP_INTERVAL_SECONDS: ${AUDIT_CLEANUP_INTERVAL_SECONDS:-86400}
+    volumes:
+      - ./secrets:/app/secrets:ro
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    networks:
+      - data
+    depends_on:
+      db:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    command: ["python", "-m", "app.worker"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    logging: *container-logging
+    mem_limit: 768m
+    cpus: 1.0
+    pids_limit: 256
+    stop_grace_period: 2m
+
+  caddy:
+    image: caddy:2.11.7-alpine
+    restart: unless-stopped
+    environment:
+      DATAHUB_DOMAIN: ${DATAHUB_DOMAIN:?Set DATAHUB_DOMAIN in .env.production}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env.production}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - proxy
+    depends_on:
+      api:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+    logging: *container-logging
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 128
+    stop_grace_period: 30s
+
+networks:
+  proxy:
+  data:
+
+volumes:
+  postgres_data:
+  caddy_data:
+  caddy_config:
+
