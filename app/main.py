@@ -20,8 +20,11 @@ from app.auth import (
     ReusedPasswordError,
     authenticate_user_session,
     change_user_password,
+    clear_login_failures,
     create_user_session,
     is_public_path,
+    login_retry_after,
+    record_login_failure,
     revoke_user_session,
 )
 from app.authorization import (
@@ -192,7 +195,7 @@ def health() -> dict[str, str]:
 
 
 @app.post("/api/auth/login")
-def login(payload: LoginRequest, response: Response) -> dict:
+def login(request: Request, payload: LoginRequest, response: Response) -> dict:
     from app.security import (
         normalize_username,
         password_needs_rehash,
@@ -204,25 +207,52 @@ def login(payload: LoginRequest, response: Response) -> dict:
         username = normalize_username(payload.username)
     except ValueError:
         username = ""
+    throttle_username = username or payload.username.strip().lower()[:128]
+    ip_address = request.client.host if request.client else "unknown"
 
     with SessionLocal() as session:
+        retry_after = login_retry_after(
+            session,
+            username=throttle_username,
+            ip_address=ip_address,
+        )
+        if retry_after:
+            raise HTTPException(
+                status_code=429,
+                detail="Đăng nhập sai quá nhiều lần. Hãy thử lại sau.",
+                headers={"Retry-After": str(retry_after)},
+            )
         user = session.scalar(select(User).where(User.username == username)) if username else None
         valid_password = verify_password_or_dummy(
             user.password_hash if user is not None else None,
             payload.password,
         )
         if user is None or not user.is_active or not valid_password:
+            record_login_failure(
+                session,
+                username=throttle_username,
+                ip_address=ip_address,
+                max_failures=settings.auth_login_max_failures,
+                window_seconds=settings.auth_login_window_seconds,
+                lock_seconds=settings.auth_login_lock_seconds,
+            )
             session.add(
                 AuditLog(
                     actor_user_id=user.id if user is not None else None,
                     action="auth.login",
                     result="denied",
                     metadata_json={"username": username},
+                    ip_address=ip_address,
                 )
             )
             session.commit()
             raise HTTPException(status_code=401, detail="Tên đăng nhập hoặc mật khẩu không đúng.")
 
+        clear_login_failures(
+            session,
+            username=throttle_username,
+            ip_address=ip_address,
+        )
         if password_needs_rehash(user.password_hash):
             from app.security import hash_password
 
@@ -241,6 +271,7 @@ def login(payload: LoginRequest, response: Response) -> dict:
                 resource_id=user_session.id,
                 result="success",
                 metadata_json={},
+                ip_address=ip_address,
             )
         )
         session.commit()

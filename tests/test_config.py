@@ -13,6 +13,9 @@ def test_sync_defaults_to_one_page() -> None:
     assert settings.pancake_sync_interval_seconds == 300
     assert settings.auth_session_hours == 12
     assert settings.auth_cookie_secure is False
+    assert settings.auth_login_max_failures == 5
+    assert settings.auth_login_window_seconds == 900
+    assert settings.auth_login_lock_seconds == 900
 
 
 def test_sync_page_limit_must_be_positive() -> None:

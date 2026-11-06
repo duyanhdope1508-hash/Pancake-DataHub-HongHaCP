@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     pancake_sync_interval_seconds: int = Field(default=300, ge=30, le=86_400)
     auth_session_hours: int = Field(default=12, ge=1, le=168)
     auth_cookie_secure: bool = False
+    auth_login_max_failures: int = Field(default=5, ge=3, le=20)
+    auth_login_window_seconds: int = Field(default=900, ge=60, le=86_400)
+    auth_login_lock_seconds: int = Field(default=900, ge=60, le=86_400)
 
     @property
     def shop_allowlist(self) -> set[str]:

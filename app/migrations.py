@@ -494,6 +494,24 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261106_016_add_login_throttling",
+        (
+            """
+            CREATE TABLE IF NOT EXISTS auth_login_throttles (
+                key_hash VARCHAR(64) PRIMARY KEY,
+                failure_count INTEGER NOT NULL DEFAULT 0,
+                window_started_at TIMESTAMPTZ NOT NULL,
+                blocked_until TIMESTAMPTZ,
+                updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """,
+            (
+                "CREATE INDEX IF NOT EXISTS ix_auth_login_throttles_updated "
+                "ON auth_login_throttles (updated_at)"
+            ),
+        ),
+    ),
 )
 
 

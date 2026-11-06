@@ -7,11 +7,15 @@ from app.auth import (
     InvalidCurrentPasswordError,
     authenticate_user_session,
     change_user_password,
+    clear_login_failures,
     create_user_session,
     is_public_path,
+    login_retry_after,
+    login_throttle_key,
+    record_login_failure,
     revoke_user_session,
 )
-from app.models import User, UserSession
+from app.models import LoginThrottle, User, UserSession
 from app.security import hash_password, verify_password
 
 
@@ -156,3 +160,38 @@ def test_change_password_rejects_wrong_current_password() -> None:
         )
 
     db.execute.assert_not_called()
+
+
+def test_login_throttle_blocks_repeated_failures_and_can_be_cleared() -> None:
+    db = Mock()
+    stored: dict[str, LoginThrottle] = {}
+
+    def get_throttle(_model, key_hash):
+        return stored.get(key_hash)
+
+    def add_throttle(throttle):
+        stored[throttle.key_hash] = throttle
+
+    db.get.side_effect = get_throttle
+    db.add.side_effect = add_throttle
+    username = "staff"
+    ip_address = "127.0.0.1"
+
+    for _ in range(5):
+        record_login_failure(
+            db,
+            username=username,
+            ip_address=ip_address,
+            max_failures=5,
+            window_seconds=900,
+            lock_seconds=900,
+        )
+
+    key_hash = login_throttle_key(username, ip_address)
+    assert len(key_hash) == 64
+    assert stored[key_hash].failure_count == 5
+    assert stored[key_hash].blocked_until is not None
+    assert login_retry_after(db, username=username, ip_address=ip_address) > 0
+
+    clear_login_failures(db, username=username, ip_address=ip_address)
+    db.delete.assert_called_once_with(stored[key_hash])

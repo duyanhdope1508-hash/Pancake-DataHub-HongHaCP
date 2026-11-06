@@ -8,7 +8,7 @@ from uuid import uuid4
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.models import User, UserSession
+from app.models import LoginThrottle, User, UserSession
 from app.security import hash_password, verify_password
 
 SESSION_COOKIE_NAME = "hongha_session"
@@ -30,6 +30,63 @@ class ReusedPasswordError(ValueError):
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def login_throttle_key(username: str, ip_address: str) -> str:
+    normalized = f"{username.strip().lower()}\0{ip_address.strip()}"
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def login_retry_after(
+    db: Session,
+    *,
+    username: str,
+    ip_address: str,
+) -> int:
+    throttle = db.get(LoginThrottle, login_throttle_key(username, ip_address))
+    if throttle is None or throttle.blocked_until is None:
+        return 0
+    remaining = int((throttle.blocked_until - datetime.now(UTC)).total_seconds())
+    return max(remaining, 0)
+
+
+def record_login_failure(
+    db: Session,
+    *,
+    username: str,
+    ip_address: str,
+    max_failures: int,
+    window_seconds: int,
+    lock_seconds: int,
+) -> None:
+    key_hash = login_throttle_key(username, ip_address)
+    now = datetime.now(UTC)
+    throttle = db.get(LoginThrottle, key_hash)
+    if throttle is None:
+        throttle = LoginThrottle(
+            key_hash=key_hash,
+            failure_count=0,
+            window_started_at=now,
+            updated_at=now,
+        )
+        db.add(throttle)
+    elif throttle.window_started_at <= now - timedelta(seconds=window_seconds):
+        throttle.failure_count = 0
+        throttle.window_started_at = now
+        throttle.blocked_until = None
+
+    throttle.failure_count += 1
+    throttle.updated_at = now
+    if throttle.failure_count >= max_failures:
+        throttle.blocked_until = now + timedelta(seconds=lock_seconds)
+    db.flush()
+
+
+def clear_login_failures(db: Session, *, username: str, ip_address: str) -> None:
+    throttle = db.get(LoginThrottle, login_throttle_key(username, ip_address))
+    if throttle is not None:
+        db.delete(throttle)
+        db.flush()
 
 
 def create_user_session(
