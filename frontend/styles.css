@@ -244,8 +244,53 @@ body {
 }
 
 .staff-active-field input,
+.staff-reset-password input,
 .staff-shop-option input {
   accent-color: var(--accent);
+}
+
+.staff-reset-password {
+  padding: 11px 12px;
+  border: 1px solid #e8d4aa;
+  border-radius: 6px;
+  background: #fff8eb;
+}
+
+.staff-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.temporary-credential {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #b9d8ca;
+  border-radius: 6px;
+  background: #f2faf6;
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.temporary-credential[hidden] {
+  display: none;
+}
+
+.temporary-credential code {
+  padding: 2px 5px;
+  border-radius: 3px;
+  background: #e3f1e9;
+  color: var(--accent-dark);
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 12px;
+  user-select: all;
+}
+
+.temporary-credential .secondary-button {
+  justify-self: start;
+  margin-top: 3px;
 }
 
 .staff-shop-selector {

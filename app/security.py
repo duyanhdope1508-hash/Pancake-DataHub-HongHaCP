@@ -1,4 +1,5 @@
 import re
+import secrets
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerificationError, VerifyMismatchError
@@ -28,6 +29,11 @@ def validate_password(password: str) -> None:
 def hash_password(password: str) -> str:
     validate_password(password)
     return _PASSWORD_HASHER.hash(password)
+
+
+def generate_temporary_password() -> str:
+    """Generate a copy-friendly password that is shown to an admin only once."""
+    return secrets.token_urlsafe(18)
 
 
 def verify_password(password_hash: str, password: str) -> bool:

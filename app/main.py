@@ -86,7 +86,6 @@ class ChangePasswordRequest(BaseModel):
 class CreateStaffRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     display_name: str = Field(min_length=1, max_length=255)
-    password: str = Field(min_length=12, max_length=256)
     shop_ids: list[str] = Field(default_factory=list, max_length=100)
 
 
@@ -94,7 +93,7 @@ class UpdateStaffRequest(BaseModel):
     display_name: str = Field(min_length=1, max_length=255)
     is_active: bool
     shop_ids: list[str] = Field(default_factory=list, max_length=100)
-    password: str | None = Field(default=None, min_length=12, max_length=256)
+    reset_password: bool = False
 
 
 def _safe_user(user: User) -> dict:
@@ -431,13 +430,16 @@ def admin_audit_logs(
 def admin_create_staff(request: Request, payload: CreateStaffRequest) -> dict:
     actor = request.state.current_user
     require_admin(actor)
+    from app.security import generate_temporary_password
+
+    temporary_password = generate_temporary_password()
     with SessionLocal() as session:
         try:
             user = create_staff(
                 session,
                 username=payload.username,
                 display_name=payload.display_name,
-                password=payload.password,
+                password=temporary_password,
                 shop_ids=payload.shop_ids,
             )
         except (DuplicateUsernameError, UnknownShopError, ValueError) as exc:
@@ -454,7 +456,12 @@ def admin_create_staff(request: Request, payload: CreateStaffRequest) -> dict:
             )
         )
         session.commit()
-        return {"status": "created", "user_id": user.id}
+        return {
+            "status": "created",
+            "user_id": user.id,
+            "username": user.username,
+            "temporary_password": temporary_password,
+        }
 
 
 @app.put("/api/admin/users/{user_id}")
@@ -465,6 +472,9 @@ def admin_update_staff(
 ) -> dict:
     actor = request.state.current_user
     require_admin(actor)
+    from app.security import generate_temporary_password
+
+    temporary_password = generate_temporary_password() if payload.reset_password else None
     with SessionLocal() as session:
         try:
             user = update_staff(
@@ -473,7 +483,7 @@ def admin_update_staff(
                 display_name=payload.display_name,
                 is_active=payload.is_active,
                 shop_ids=payload.shop_ids,
-                password=payload.password,
+                password=temporary_password,
             )
         except (StaffNotFoundError, UnknownShopError, ValueError) as exc:
             session.rollback()
@@ -487,13 +497,18 @@ def admin_update_staff(
                 result="success",
                 metadata_json={
                     "active": payload.is_active,
-                    "password_changed": bool(payload.password),
+                    "password_changed": payload.reset_password,
                     "shop_count": len(payload.shop_ids),
                 },
             )
         )
         session.commit()
-        return {"status": "updated", "user_id": user.id}
+        return {
+            "status": "updated",
+            "user_id": user.id,
+            "username": user.username,
+            "temporary_password": temporary_password,
+        }
 
 
 @app.get("/api/system-status")

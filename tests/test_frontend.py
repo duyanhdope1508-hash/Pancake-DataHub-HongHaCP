@@ -33,7 +33,9 @@ def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:
         'id="staffForm"',
         'id="staffDisplayName"',
         'id="staffUsername"',
-        'id="staffPassword"',
+        'id="staffResetPassword"',
+        'id="temporaryCredential"',
+        'id="temporaryPassword"',
         'id="staffIsActive"',
         'id="staffShopOptions"',
         'id="staffList"',
@@ -41,6 +43,8 @@ def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:
         assert element_id in html
     assert "/api/admin/users" in javascript
     assert 'method: isEditing ? "PUT" : "POST"' in javascript
+    assert "result.temporary_password" in javascript
+    assert "navigator.clipboard.writeText" in javascript
     assert "user.role !== \"admin\"" in javascript
 
 

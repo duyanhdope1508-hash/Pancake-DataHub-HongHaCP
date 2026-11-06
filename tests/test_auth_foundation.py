@@ -7,6 +7,7 @@ from sqlalchemy import CheckConstraint
 from app.create_admin import create_admin
 from app.models import AuditLog, LoginThrottle, User, UserSession, UserShopAccess
 from app.security import (
+    generate_temporary_password,
     hash_password,
     normalize_username,
     verify_password,
@@ -62,6 +63,15 @@ def test_password_is_hashed_with_argon2id_and_verifies() -> None:
     assert verify_password(password_hash, "wrong password") is False
     assert verify_password("not-a-password-hash", "wrong password") is False
     assert verify_password_or_dummy(None, "wrong password") is False
+
+
+def test_temporary_passwords_are_strong_and_unique() -> None:
+    first = generate_temporary_password()
+    second = generate_temporary_password()
+
+    assert len(first) >= 20
+    assert first != second
+    assert " " not in first
 
 
 def test_username_is_normalized_and_validated() -> None:

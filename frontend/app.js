@@ -41,13 +41,16 @@ const elements = {
   staffUserId: document.querySelector("#staffUserId"),
   staffDisplayName: document.querySelector("#staffDisplayName"),
   staffUsername: document.querySelector("#staffUsername"),
-  staffPassword: document.querySelector("#staffPassword"),
-  staffPasswordLabel: document.querySelector("#staffPasswordLabel"),
-  staffPasswordHelp: document.querySelector("#staffPasswordHelp"),
+  staffResetPasswordField: document.querySelector("#staffResetPasswordField"),
+  staffResetPassword: document.querySelector("#staffResetPassword"),
   staffActiveField: document.querySelector("#staffActiveField"),
   staffIsActive: document.querySelector("#staffIsActive"),
   staffShopOptions: document.querySelector("#staffShopOptions"),
   staffFormMessage: document.querySelector("#staffFormMessage"),
+  temporaryCredential: document.querySelector("#temporaryCredential"),
+  temporaryUsername: document.querySelector("#temporaryUsername"),
+  temporaryPassword: document.querySelector("#temporaryPassword"),
+  copyTemporaryCredential: document.querySelector("#copyTemporaryCredential"),
   saveStaffButton: document.querySelector("#saveStaffButton"),
   cancelStaffEdit: document.querySelector("#cancelStaffEdit"),
   selectAllStaffShops: document.querySelector("#selectAllStaffShops"),
@@ -523,6 +526,18 @@ function setStaffFormMessage(message, isError = false) {
   elements.staffFormMessage.classList.toggle("is-error", isError);
 }
 
+function hideTemporaryCredential() {
+  elements.temporaryCredential.hidden = true;
+  elements.temporaryUsername.textContent = "";
+  elements.temporaryPassword.textContent = "";
+}
+
+function showTemporaryCredential(username, password) {
+  elements.temporaryUsername.textContent = username;
+  elements.temporaryPassword.textContent = password;
+  elements.temporaryCredential.hidden = false;
+}
+
 function renderStaffShopOptions(selectedShopIds = []) {
   const selected = new Set(selectedShopIds);
   const options = (state.staffManagement?.shops || []).map((shop) => {
@@ -542,14 +557,14 @@ function resetStaffForm() {
   elements.staffUserId.value = "";
   elements.staffUsername.disabled = false;
   elements.staffUsername.required = true;
-  elements.staffPassword.required = true;
-  elements.staffPasswordLabel.textContent = "Mật khẩu tạm thời";
-  elements.staffPasswordHelp.textContent = "Ít nhất 12 ký tự. Gửi riêng cho nhân viên.";
+  elements.staffResetPassword.checked = false;
+  elements.staffResetPasswordField.hidden = true;
   elements.staffActiveField.hidden = true;
   elements.staffFormTitle.textContent = "Thêm nhân viên";
   elements.saveStaffButton.textContent = "Tạo nhân viên";
   elements.cancelStaffEdit.hidden = true;
   setStaffFormMessage("");
+  hideTemporaryCredential();
   renderStaffShopOptions();
 }
 
@@ -559,16 +574,15 @@ function beginStaffEdit(user) {
   elements.staffUsername.value = user.username;
   elements.staffUsername.disabled = true;
   elements.staffUsername.required = false;
-  elements.staffPassword.value = "";
-  elements.staffPassword.required = false;
-  elements.staffPasswordLabel.textContent = "Mật khẩu mới (không bắt buộc)";
-  elements.staffPasswordHelp.textContent = "Để trống nếu không đổi mật khẩu.";
+  elements.staffResetPassword.checked = false;
+  elements.staffResetPasswordField.hidden = false;
   elements.staffIsActive.checked = user.is_active;
   elements.staffActiveField.hidden = false;
   elements.staffFormTitle.textContent = `Sửa: ${user.display_name}`;
   elements.saveStaffButton.textContent = "Lưu thay đổi";
   elements.cancelStaffEdit.hidden = false;
   setStaffFormMessage("");
+  hideTemporaryCredential();
   renderStaffShopOptions(user.shop_ids);
   elements.staffDisplayName.focus();
 }
@@ -624,7 +638,12 @@ function renderStaffList() {
       createElement(
         "span",
         "",
-        user.last_login_at ? `Đăng nhập gần nhất ${formatDate(user.last_login_at)}` : "Chưa đăng nhập",
+        [
+          user.created_at ? `Tạo ${formatDate(user.created_at)}` : "",
+          user.last_login_at ? `Đăng nhập gần nhất ${formatDate(user.last_login_at)}` : "Chưa đăng nhập",
+        ]
+          .filter(Boolean)
+          .join(" · "),
       ),
     );
     const editButton = createElement("button", "secondary-button", "Sửa quyền");
@@ -662,17 +681,15 @@ async function saveStaff(event) {
   setStaffFormMessage("");
   const userId = elements.staffUserId.value;
   const isEditing = Boolean(userId);
-  const password = elements.staffPassword.value;
   const payload = {
     display_name: elements.staffDisplayName.value,
     shop_ids: selectedStaffShopIds(),
   };
   if (isEditing) {
     payload.is_active = elements.staffIsActive.checked;
-    payload.password = password || null;
+    payload.reset_password = elements.staffResetPassword.checked;
   } else {
     payload.username = elements.staffUsername.value;
-    payload.password = password;
   }
 
   elements.saveStaffButton.disabled = true;
@@ -692,7 +709,16 @@ async function saveStaff(event) {
       throw new Error(result.detail || `Yêu cầu thất bại (${response.status})`);
     }
     await loadStaffManagement();
-    setStaffFormMessage(isEditing ? "Đã cập nhật nhân viên." : "Đã tạo nhân viên.");
+    if (result.temporary_password) {
+      showTemporaryCredential(result.username, result.temporary_password);
+      setStaffFormMessage(
+        isEditing
+          ? "Đã đặt lại mật khẩu và đăng xuất các phiên cũ."
+          : "Đã tạo nhân viên. Hãy sao chép thông tin đăng nhập bên dưới.",
+      );
+    } else {
+      setStaffFormMessage(isEditing ? "Đã cập nhật nhân viên." : "Đã tạo nhân viên.");
+    }
   } catch (error) {
     setStaffFormMessage(error.message, true);
   } finally {
@@ -700,6 +726,21 @@ async function saveStaff(event) {
     elements.saveStaffButton.textContent = elements.staffUserId.value
       ? "Lưu thay đổi"
       : "Tạo nhân viên";
+  }
+}
+
+async function copyTemporaryCredential() {
+  const username = elements.temporaryUsername.textContent;
+  const password = elements.temporaryPassword.textContent;
+  if (!username || !password) return;
+  try {
+    await navigator.clipboard.writeText(`Tài khoản: ${username}\nMật khẩu tạm: ${password}`);
+    elements.copyTemporaryCredential.textContent = "Đã sao chép";
+    window.setTimeout(() => {
+      elements.copyTemporaryCredential.textContent = "Sao chép tài khoản và mật khẩu";
+    }, 1800);
+  } catch {
+    setStaffFormMessage("Không thể tự sao chép. Hãy bôi đen thông tin và sao chép thủ công.", true);
   }
 }
 
@@ -1252,6 +1293,7 @@ elements.passwordDialog.addEventListener("click", (event) => {
 elements.manageStaffButton.addEventListener("click", openStaffManagement);
 elements.staffForm.addEventListener("submit", saveStaff);
 elements.cancelStaffEdit.addEventListener("click", resetStaffForm);
+elements.copyTemporaryCredential.addEventListener("click", copyTemporaryCredential);
 elements.selectAllStaffShops.addEventListener("click", () => {
   for (const input of elements.staffShopOptions.querySelectorAll('input[type="checkbox"]')) {
     input.checked = true;

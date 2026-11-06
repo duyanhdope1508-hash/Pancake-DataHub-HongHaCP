@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=16" />
-    <script src="/assets/app.js?v=17" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=18" />
+    <script src="/assets/app.js?v=18" defer></script>
   </head>
   <body>
     <main id="loginShell" class="login-shell" hidden>
@@ -300,10 +300,12 @@
               <span>Tên đăng nhập</span>
               <input id="staffUsername" type="text" required maxlength="64" autocomplete="off" placeholder="Ví dụ: thu.ha" />
             </label>
-            <label>
-              <span id="staffPasswordLabel">Mật khẩu tạm thời</span>
-              <input id="staffPassword" type="password" required minlength="12" maxlength="256" autocomplete="new-password" />
-              <small id="staffPasswordHelp">Ít nhất 12 ký tự. Gửi riêng cho nhân viên.</small>
+            <label id="staffResetPasswordField" class="staff-reset-password" hidden>
+              <span class="staff-check-row">
+                <input id="staffResetPassword" type="checkbox" />
+                <span>Tạo mật khẩu tạm mới</span>
+              </span>
+              <small>Nhân viên sẽ bị đăng xuất và phải đổi mật khẩu ở lần đăng nhập tiếp theo.</small>
             </label>
             <label id="staffActiveField" class="staff-active-field" hidden>
               <input id="staffIsActive" type="checkbox" checked />
@@ -320,6 +322,12 @@
               <div id="staffShopOptions" class="staff-shop-options"></div>
             </div>
             <div id="staffFormMessage" class="staff-form-message" role="status" aria-live="polite"></div>
+            <section id="temporaryCredential" class="temporary-credential" aria-live="polite" hidden>
+              <strong>Mật khẩu tạm — chỉ hiển thị lần này</strong>
+              <span>Tài khoản: <code id="temporaryUsername"></code></span>
+              <span>Mật khẩu: <code id="temporaryPassword"></code></span>
+              <button id="copyTemporaryCredential" class="secondary-button" type="button">Sao chép tài khoản và mật khẩu</button>
+            </section>
             <button id="saveStaffButton" class="primary-button staff-save-button" type="submit">Tạo nhân viên</button>
           </form>
         </section>
