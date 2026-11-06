@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
 from starlette.background import BackgroundTask
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.abuse import QuotaDecision, consume_quota
 from app.audit import add_audit_event, list_audit_logs
@@ -69,6 +70,10 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
+)
+app.add_middleware(
+    TrustedHostMiddleware,
+    allowed_hosts=get_settings().trusted_host_list,
 )
 
 frontend_dir = Path(__file__).resolve().parents[1] / "frontend"

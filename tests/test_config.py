@@ -13,6 +13,7 @@ def test_sync_defaults_to_one_page() -> None:
     assert settings.pancake_sync_interval_seconds == 300
     assert settings.auth_session_hours == 12
     assert settings.auth_cookie_secure is False
+    assert settings.trusted_hosts == "*"
     assert settings.auth_login_max_failures == 5
     assert settings.auth_login_window_seconds == 900
     assert settings.auth_login_lock_seconds == 900
@@ -46,3 +47,17 @@ def test_sync_start_page_must_be_positive() -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, pancake_start_page=0)
 
+
+def test_trusted_hosts_are_parsed_from_comma_separated_setting() -> None:
+    settings = Settings(
+        _env_file=None,
+        trusted_hosts="data.example.com, api, localhost",
+    )
+
+    assert settings.trusted_host_list == ["data.example.com", "api", "localhost"]
+
+
+def test_empty_trusted_hosts_falls_back_to_wildcard() -> None:
+    settings = Settings(_env_file=None, trusted_hosts=" , ")
+
+    assert settings.trusted_host_list == ["*"]

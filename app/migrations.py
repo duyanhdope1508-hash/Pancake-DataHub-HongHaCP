@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from sqlalchemy import Engine, text
+from sqlalchemy import Connection, text
 
 MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
     (
@@ -560,37 +560,36 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
 )
 
 
-def apply_migrations(engine: Engine) -> None:
-    with engine.begin() as connection:
+def apply_migrations(connection: Connection) -> None:
+    connection.execute(
+        text(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                migration_id VARCHAR(255) PRIMARY KEY,
+                applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+            )
+            """
+        )
+    )
+
+    for migration_id, statements in MIGRATIONS:
+        already_applied = connection.scalar(
+            text(
+                "SELECT EXISTS(SELECT 1 FROM schema_migrations "
+                "WHERE migration_id = :migration_id)"
+            ),
+            {"migration_id": migration_id},
+        )
+        if already_applied:
+            continue
+
+        for statement in statements:
+            connection.execute(text(statement))
         connection.execute(
             text(
-                """
-                CREATE TABLE IF NOT EXISTS schema_migrations (
-                    migration_id VARCHAR(255) PRIMARY KEY,
-                    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                )
-                """
-            )
+                "INSERT INTO schema_migrations (migration_id) "
+                "VALUES (:migration_id)"
+            ),
+            {"migration_id": migration_id},
         )
-
-        for migration_id, statements in MIGRATIONS:
-            already_applied = connection.scalar(
-                text(
-                    "SELECT EXISTS(SELECT 1 FROM schema_migrations "
-                    "WHERE migration_id = :migration_id)"
-                ),
-                {"migration_id": migration_id},
-            )
-            if already_applied:
-                continue
-
-            for statement in statements:
-                connection.execute(text(statement))
-            connection.execute(
-                text(
-                    "INSERT INTO schema_migrations (migration_id) "
-                    "VALUES (:migration_id)"
-                ),
-                {"migration_id": migration_id},
-            )
 

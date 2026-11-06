@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import get_settings
@@ -17,6 +17,10 @@ def init_db() -> None:
     from app import models  # noqa: F401
     from app.migrations import apply_migrations
 
-    Base.metadata.create_all(bind=engine)
-    apply_migrations(engine)
+    with engine.begin() as connection:
+        connection.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext('pancake_data_hub_schema_init'))")
+        )
+        Base.metadata.create_all(bind=connection)
+        apply_migrations(connection)
 

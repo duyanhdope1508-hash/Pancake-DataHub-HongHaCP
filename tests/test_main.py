@@ -47,6 +47,12 @@ def test_system_status_route_is_registered() -> None:
     assert {"GET", "POST"} <= export_methods
 
 
+def test_trusted_hosts_are_configurable() -> None:
+    settings = main.get_settings()
+
+    assert settings.trusted_host_list
+
+
 def test_selected_export_requires_at_least_one_order() -> None:
     payload = main.ExportOrdersRequest(selection_mode="selected")
 
