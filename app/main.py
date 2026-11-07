@@ -295,9 +295,13 @@ def _cached_order_filters(
         return order_filters(session, shop_ids)
 
 
+def _should_disable_browser_cache(path: str) -> bool:
+    return path == "/" or path.startswith(("/api/", "/assets/"))
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
-    no_store = request.url.path == "/" or request.url.path.startswith("/api/")
+    no_store = _should_disable_browser_cache(request.url.path)
     hsts = get_settings().auth_cookie_secure
 
     def secure(response: Response) -> Response:

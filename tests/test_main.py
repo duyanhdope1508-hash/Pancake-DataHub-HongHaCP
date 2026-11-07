@@ -100,6 +100,13 @@ def test_sensitive_responses_have_browser_security_headers() -> None:
     assert "camera=()" in response.headers["Permissions-Policy"]
 
 
+def test_frontend_assets_disable_browser_and_proxy_cache() -> None:
+    assert main._should_disable_browser_cache("/") is True
+    assert main._should_disable_browser_cache("/api/orders") is True
+    assert main._should_disable_browser_cache("/assets/app.js") is True
+    assert main._should_disable_browser_cache("/health") is False
+
+
 def test_audit_client_uses_server_observed_ip_and_bounds_user_agent() -> None:
     request = SimpleNamespace(
         client=SimpleNamespace(host="192.0.2.10"),
