@@ -52,6 +52,16 @@ def test_production_secrets_are_not_sent_to_docker_or_git() -> None:
     assert "secrets/cloudflare_tunnel_token" in gitignore
 
 
+def test_connector_admin_is_manual_and_has_only_required_secret_write_access() -> None:
+    compose = (ROOT / "compose.production.yaml").read_text(encoding="utf-8")
+
+    assert "connector-admin:" in compose
+    assert 'profiles: ["tools"]' in compose
+    assert "./secrets:/app/secrets:rw" in compose
+    assert 'command: ["python", "-m", "app.add_connectors"]' in compose
+    assert "PANCAKE_CONNECTORS_FILE: /app/secrets/pancake_connectors.json" in compose
+
+
 def test_restore_requires_explicit_confirmation() -> None:
     restore_script = (ROOT / "scripts/restore-postgres.sh").read_text(encoding="utf-8")
 

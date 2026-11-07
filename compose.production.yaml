@@ -144,6 +144,31 @@ services:
     pids_limit: 256
     stop_grace_period: 2m
 
+  connector-admin:
+    image: pancake-data-hub:${APP_VERSION:-production}
+    profiles: ["tools"]
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    init: true
+    environment:
+      PANCAKE_API_BASE_URL: ${PANCAKE_API_BASE_URL:-https://pos.pages.fm/api/v1}
+      PANCAKE_CONNECTORS_FILE: /app/secrets/pancake_connectors.json
+    volumes:
+      - ./secrets:/app/secrets:rw
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    networks:
+      - proxy
+    command: ["python", "-m", "app.add_connectors"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    logging: *container-logging
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+
   cloudflared:
     image: cloudflare/cloudflared:2026.10.7
     restart: unless-stopped
