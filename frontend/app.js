@@ -1916,13 +1916,12 @@ elements.orderDialog.addEventListener("click", (event) => {
 });
 
 document.addEventListener("contextmenu", (event) => {
-  if (!state.currentUser) return;
   event.preventDefault();
   showInspectionNotice();
 });
 
 document.addEventListener("keydown", (event) => {
-  if (!state.currentUser || !isBlockedInspectionShortcut(event)) return;
+  if (!isBlockedInspectionShortcut(event)) return;
   event.preventDefault();
   event.stopPropagation();
   showInspectionNotice();
