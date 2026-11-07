@@ -9,6 +9,7 @@ def test_production_deployment_files_exist() -> None:
         ".env.production.example",
         "compose.production.yaml",
         "scripts/backup-postgres.sh",
+        "scripts/install-backup-timer.sh",
         "scripts/restore-postgres.sh",
         "scripts/deploy-production.sh",
     ):
@@ -68,4 +69,16 @@ def test_restore_requires_explicit_confirmation() -> None:
     assert 'RESTORE_CONFIRM:-' in restore_script
     assert '!= "RESTORE"' in restore_script
     assert "--single-transaction" in restore_script
+
+
+def test_backup_timer_is_daily_persistent_and_runs_as_deploy_user() -> None:
+    installer = (ROOT / "scripts/install-backup-timer.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "OnCalendar=*-*-* 02:30:00" in installer
+    assert "Persistent=true" in installer
+    assert "BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}" in installer
+    assert "User=$BACKUP_USER" in installer
+    assert "ExecStart=$PROJECT_DIR/scripts/backup-postgres.sh" in installer
 
