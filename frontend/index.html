@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=29" />
-    <script src="/assets/app.js?v=29" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=30" />
+    <script src="/assets/app.js?v=30" defer></script>
   </head>
   <body>
     <main id="loginShell" class="login-shell" hidden>
@@ -42,6 +42,10 @@
           </div>
           <button id="manageStaffButton" class="manage-staff-button" type="button" hidden>Nhân viên</button>
           <button id="auditLogButton" class="manage-staff-button" type="button" hidden>Nhật ký</button>
+          <button id="securityAlertsButton" class="security-alerts-button" type="button" hidden>
+            Cảnh báo
+            <span id="securityAlertCount" class="security-alert-count" hidden>0</span>
+          </button>
           <button id="changePasswordButton" class="logout-button" type="button">Đổi mật khẩu</button>
           <button id="logoutButton" class="logout-button" type="button">Đăng xuất</button>
           <div class="system-state">
@@ -433,6 +437,27 @@
           <span id="auditPageIndicator">Trang — / —</span>
           <button id="nextAuditPage" class="secondary-button" type="button">Trang sau →</button>
         </nav>
+      </div>
+    </dialog>
+
+    <dialog id="securityAlertsDialog" class="security-alerts-dialog" aria-labelledby="securityAlertsDialogTitle">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Phát hiện bất thường</p>
+          <h2 id="securityAlertsDialogTitle">Cảnh báo lấy dữ liệu hàng loạt</h2>
+        </div>
+        <button id="closeSecurityAlertsDialog" class="icon-button" type="button" aria-label="Đóng">×</button>
+      </div>
+      <div class="security-alerts-content">
+        <div class="security-alerts-heading">
+          <p>Các tài khoản chạm 80% hạn mức hoặc đã bị hệ thống chặn trong 24 giờ gần nhất.</p>
+          <button id="refreshSecurityAlerts" class="secondary-button" type="button">Làm mới</button>
+        </div>
+        <div id="securityAlertsList" class="security-alerts-list"></div>
+        <div id="securityAlertsEmpty" class="empty-state" hidden>
+          <strong>Không có cảnh báo trong 24 giờ qua</strong>
+        </div>
+        <div id="securityAlertsError" class="staff-form-message is-error" role="alert"></div>
       </div>
     </dialog>
 

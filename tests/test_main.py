@@ -40,6 +40,7 @@ def test_system_status_route_is_registered() -> None:
     assert "/api/auth/change-password" in paths
     assert "/api/admin/users" in paths
     assert "/api/admin/audit-logs" in paths
+    assert "/api/admin/security-alerts" in paths
     export_methods = {
         method
         for route in app.routes

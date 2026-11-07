@@ -18,7 +18,7 @@ from starlette.background import BackgroundTask
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from app.abuse import QuotaDecision, consume_quota
-from app.audit import add_audit_event, list_audit_logs
+from app.audit import add_audit_event, list_audit_logs, list_security_alerts
 from app.auth import (
     CSRF_COOKIE_NAME,
     SESSION_COOKIE_NAME,
@@ -695,6 +695,17 @@ def admin_audit_logs(
             date_from=date_from,
             date_to=date_to,
         )
+
+
+@app.get("/api/admin/security-alerts")
+def admin_security_alerts(
+    request: Request,
+    hours: int = Query(default=24, ge=1, le=168),
+    limit: int = Query(default=50, ge=1, le=100),
+) -> dict:
+    require_admin(request.state.current_user)
+    with SessionLocal() as session:
+        return list_security_alerts(session, hours=hours, limit=limit)
 
 
 @app.post("/api/admin/users", status_code=201)

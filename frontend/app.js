@@ -14,6 +14,7 @@ const state = {
   totalMatchingOrders: 0,
   appliedExportFilters: {},
   watermarkTimer: null,
+  securityAlertTimer: null,
 };
 
 const elements = {
@@ -29,6 +30,14 @@ const elements = {
   currentUserRole: document.querySelector("#currentUserRole"),
   manageStaffButton: document.querySelector("#manageStaffButton"),
   auditLogButton: document.querySelector("#auditLogButton"),
+  securityAlertsButton: document.querySelector("#securityAlertsButton"),
+  securityAlertCount: document.querySelector("#securityAlertCount"),
+  securityAlertsDialog: document.querySelector("#securityAlertsDialog"),
+  closeSecurityAlertsDialog: document.querySelector("#closeSecurityAlertsDialog"),
+  refreshSecurityAlerts: document.querySelector("#refreshSecurityAlerts"),
+  securityAlertsList: document.querySelector("#securityAlertsList"),
+  securityAlertsEmpty: document.querySelector("#securityAlertsEmpty"),
+  securityAlertsError: document.querySelector("#securityAlertsError"),
   changePasswordButton: document.querySelector("#changePasswordButton"),
   logoutButton: document.querySelector("#logoutButton"),
   passwordDialog: document.querySelector("#passwordDialog"),
@@ -151,6 +160,7 @@ const AUDIT_ACTION_LABELS = {
   "orders.export": "Xuất Excel",
   "orders.view_detail": "Xem chi tiết đơn",
   "orders.view_detail.daily": "Tổng hợp lượt xem đơn",
+  "security.high_usage": "Sắp chạm hạn mức dữ liệu",
   "security.rate_limit": "Chặn lấy dữ liệu hàng loạt",
 };
 
@@ -383,6 +393,10 @@ function showLogin(message = "") {
     state.watermarkTimer = null;
   }
   elements.screenWatermark.replaceChildren();
+  if (state.securityAlertTimer !== null) {
+    window.clearInterval(state.securityAlertTimer);
+    state.securityAlertTimer = null;
+  }
   state.currentUser = null;
   state.staffManagement = null;
   state.passwordChangeRequired = false;
@@ -421,6 +435,7 @@ function showLogin(message = "") {
   if (elements.orderDialog.open) elements.orderDialog.close();
   if (elements.passwordDialog.open) elements.passwordDialog.close();
   if (elements.auditDialog.open) elements.auditDialog.close();
+  if (elements.securityAlertsDialog.open) elements.securityAlertsDialog.close();
   elements.passwordForm.reset();
   elements.appShell.hidden = true;
   elements.loginShell.hidden = false;
@@ -458,6 +473,15 @@ function showApplication(user) {
   elements.currentUserRole.textContent = user.role === "admin" ? "Quản trị viên" : "Nhân viên";
   elements.manageStaffButton.hidden = user.role !== "admin";
   elements.auditLogButton.hidden = user.role !== "admin";
+  elements.securityAlertsButton.hidden = user.role !== "admin";
+  if (state.securityAlertTimer !== null) window.clearInterval(state.securityAlertTimer);
+  state.securityAlertTimer = null;
+  if (user.role === "admin") {
+    loadSecurityAlerts(false).catch(() => {});
+    state.securityAlertTimer = window.setInterval(() => {
+      if (!document.hidden) loadSecurityAlerts(false).catch(() => {});
+    }, 60_000);
+  }
   elements.exportExcel.title =
     user.role === "admin"
       ? "Xuất các đơn đang khớp bộ lọc"
@@ -847,6 +871,9 @@ function auditDetail(item) {
   if (item.action === "security.rate_limit") {
     return `Đã dùng ${integerFormatter.format(metadata.used || 0)} / ${integerFormatter.format(metadata.limit || 0)} · ${metadata.quota || "Hạn mức bảo vệ"}`;
   }
+  if (item.action === "security.high_usage") {
+    return `${integerFormatter.format(metadata.percent || 0)}% hạn mức · ${integerFormatter.format(metadata.used || 0)} / ${integerFormatter.format(metadata.limit || 0)} · ${metadata.quota || "Hạn mức bảo vệ"}`;
+  }
   if (item.action === "orders.view_detail.daily") {
     return `${integerFormatter.format(metadata.event_count || 0)} lượt mở · ${integerFormatter.format(metadata.unique_order_count || 0)} đơn trong ngày`;
   }
@@ -859,6 +886,7 @@ function auditResultLabel(result) {
     denied: "Từ chối",
     skipped: "Bỏ qua",
     partial: "Có lỗi một phần",
+    warning: "Cảnh báo",
   }[result] || text(result);
 }
 
@@ -1014,6 +1042,68 @@ function resetAuditFilters() {
   elements.auditDateTo.value = "";
   state.auditPageNumber = 1;
   loadAuditLog();
+}
+
+function securityQuotaLabel(value) {
+  return {
+    "orders.list.rows.burst": "Xem nhanh danh sách trong 5 phút",
+    "orders.list.rows": "Xem danh sách trong 1 giờ",
+    "orders.view_detail.burst": "Mở chi tiết trong 5 phút",
+    "orders.view_detail": "Mở chi tiết trong 1 giờ",
+    "orders.export.requests": "Số lượt xuất Excel trong 1 giờ",
+    "orders.export.rows": "Số đơn xuất Excel trong 24 giờ",
+  }[value] || text(value, "Hạn mức bảo vệ");
+}
+
+function renderSecurityAlerts(data) {
+  const cards = data.items.map((item) => {
+    const metadata = item.metadata || {};
+    const card = createElement(
+      "article",
+      `security-alert-card ${item.action === "security.rate_limit" ? "is-blocked" : "is-warning"}`,
+    );
+    const actor = item.actor_display_name || item.actor_username || "Tài khoản không xác định";
+    const status = item.action === "security.rate_limit" ? "ĐÃ CHẶN" : "CẢNH BÁO";
+    const heading = createElement("div", "security-alert-card-heading");
+    heading.append(
+      createElement("strong", "", actor),
+      createElement("span", "security-alert-status", status),
+    );
+    const identity = item.actor_username ? `@${item.actor_username}` : "Không có username";
+    const usage = `${integerFormatter.format(metadata.used || 0)} / ${integerFormatter.format(metadata.limit || 0)}`;
+    card.append(
+      heading,
+      createElement("span", "security-alert-identity", `${identity} · ${formatDate(item.created_at)}`),
+      createElement("p", "", `${securityQuotaLabel(metadata.quota)}: ${usage}`),
+      createElement("span", "security-alert-origin", `${item.ip_address || "IP không xác định"} · ${auditDevice(item.user_agent)}`),
+    );
+    return card;
+  });
+  elements.securityAlertsList.replaceChildren(...cards);
+  elements.securityAlertsEmpty.hidden = cards.length !== 0;
+  const count = Number(data.total || 0);
+  elements.securityAlertCount.textContent = count > 99 ? "99+" : String(count);
+  elements.securityAlertCount.hidden = count === 0;
+  elements.securityAlertsButton.classList.toggle("has-alerts", count > 0);
+}
+
+async function loadSecurityAlerts(renderList = true) {
+  if (state.currentUser?.role !== "admin") return;
+  if (renderList) elements.securityAlertsError.textContent = "";
+  try {
+    const data = await fetchJson("/api/admin/security-alerts?hours=24&limit=50");
+    renderSecurityAlerts(data);
+  } catch (error) {
+    if (renderList) {
+      elements.securityAlertsError.textContent = `Không thể tải cảnh báo. ${error.message}`;
+    }
+    throw error;
+  }
+}
+
+async function openSecurityAlerts() {
+  elements.securityAlertsDialog.showModal();
+  await loadSecurityAlerts(true).catch(() => {});
 }
 
 function addOption(select, value, label) {
@@ -1671,6 +1761,12 @@ elements.staffDialog.addEventListener("click", (event) => {
   if (event.target === elements.staffDialog) elements.staffDialog.close();
 });
 elements.auditLogButton.addEventListener("click", openAuditLog);
+elements.securityAlertsButton.addEventListener("click", openSecurityAlerts);
+elements.closeSecurityAlertsDialog.addEventListener("click", () => elements.securityAlertsDialog.close());
+elements.securityAlertsDialog.addEventListener("click", (event) => {
+  if (event.target === elements.securityAlertsDialog) elements.securityAlertsDialog.close();
+});
+elements.refreshSecurityAlerts.addEventListener("click", () => loadSecurityAlerts(true));
 elements.closeAuditDialog.addEventListener("click", () => elements.auditDialog.close());
 elements.auditDialog.addEventListener("click", (event) => {
   if (event.target === elements.auditDialog) elements.auditDialog.close();

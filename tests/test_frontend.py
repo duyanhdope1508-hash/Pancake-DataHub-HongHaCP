@@ -12,8 +12,8 @@ def test_frontend_assets_exist() -> None:
 def test_frontend_uses_versioned_assets() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
-    assert 'href="/assets/styles.css?v=29"' in html
-    assert 'src="/assets/app.js?v=29"' in html
+    assert 'href="/assets/styles.css?v=30"' in html
+    assert 'src="/assets/app.js?v=30"' in html
 
 
 def test_overview_counts_refresh_without_reloading_the_page() -> None:
@@ -126,6 +126,24 @@ def test_admin_can_filter_and_page_through_audit_log() -> None:
     assert 'params.set("ip_address"' in javascript
     assert 'params.set("date_from"' in javascript
     assert "user.role !== \"admin\"" in javascript
+
+
+def test_admin_receives_bulk_access_security_alerts() -> None:
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    for element_id in (
+        'id="securityAlertsButton"',
+        'id="securityAlertCount"',
+        'id="securityAlertsDialog"',
+        'id="securityAlertsList"',
+        'id="securityAlertsEmpty"',
+    ):
+        assert element_id in html
+    assert "/api/admin/security-alerts?hours=24&limit=50" in javascript
+    assert "security.high_usage" in javascript
+    assert "security.rate_limit" in javascript
+    assert "60_000" in javascript
 
 
 def test_mutating_requests_send_session_bound_csrf_header() -> None:

@@ -1,7 +1,12 @@
 from datetime import UTC, datetime
 from unittest.mock import Mock
 
-from app.audit import add_audit_event, cleanup_audit_history, list_audit_logs
+from app.audit import (
+    add_audit_event,
+    cleanup_audit_history,
+    list_audit_logs,
+    list_security_alerts,
+)
 from app.models import AuditLog
 
 
@@ -157,3 +162,35 @@ def test_audit_log_listing_supports_action_filter() -> None:
 
     assert result["items"] == []
     assert result["pagination"]["page_number"] == 2
+
+
+def test_security_alerts_return_recent_actor_and_usage() -> None:
+    session = Mock()
+    session.scalar.return_value = 1
+    alert = AuditLog(
+        id="alert-1",
+        actor_user_id="staff-1",
+        action="security.high_usage",
+        resource_type="api",
+        resource_id="orders.list.rows.burst",
+        result="warning",
+        metadata_json={"used": 240, "limit": 300, "percent": 80},
+        ip_address="192.0.2.25",
+        user_agent="Mozilla/5.0 Chrome/130.0 Windows",
+        created_at=datetime(2026, 11, 6, 8, 0, tzinfo=UTC),
+    )
+    session.execute.return_value.all.return_value = [
+        (alert, "staff", "Nhân viên A")
+    ]
+
+    result = list_security_alerts(
+        session,
+        hours=24,
+        limit=20,
+        now=datetime(2026, 11, 6, 9, 0, tzinfo=UTC),
+    )
+
+    assert result["total"] == 1
+    assert result["hours"] == 24
+    assert result["items"][0]["actor_username"] == "staff"
+    assert result["items"][0]["metadata"]["percent"] == 80

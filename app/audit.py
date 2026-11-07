@@ -9,6 +9,7 @@ from app.models import AuditLog, User
 
 LOCAL_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
 AUDIT_CLEANUP_ADVISORY_LOCK_ID = 1_735_531_091
+SECURITY_ALERT_ACTIONS = ("security.high_usage", "security.rate_limit")
 
 
 def cleanup_audit_history(
@@ -240,4 +241,50 @@ def list_audit_logs(
             "total_items": total,
             "total_pages": (total + page_size - 1) // page_size,
         },
+    }
+
+
+def list_security_alerts(
+    session: Session,
+    *,
+    hours: int = 24,
+    limit: int = 50,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    if hours < 1 or limit < 1:
+        raise ValueError("Security alert window and limit must be positive.")
+    current_time = now or datetime.now(UTC)
+    cutoff = current_time - timedelta(hours=hours)
+    actor = aliased(User)
+    filters = (
+        AuditLog.action.in_(SECURITY_ALERT_ACTIONS),
+        AuditLog.created_at >= cutoff,
+    )
+    total = session.scalar(
+        select(func.count()).select_from(AuditLog).where(*filters)
+    ) or 0
+    rows = session.execute(
+        select(AuditLog, actor.username, actor.display_name)
+        .outerjoin(actor, actor.id == AuditLog.actor_user_id)
+        .where(*filters)
+        .order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .limit(limit)
+    ).all()
+    return {
+        "items": [
+            {
+                "id": audit_log.id,
+                "actor_username": username,
+                "actor_display_name": display_name,
+                "action": audit_log.action,
+                "result": audit_log.result,
+                "metadata": audit_log.metadata_json,
+                "ip_address": audit_log.ip_address,
+                "user_agent": audit_log.user_agent,
+                "created_at": audit_log.created_at,
+            }
+            for audit_log, username, display_name in rows
+        ],
+        "total": total,
+        "hours": hours,
     }

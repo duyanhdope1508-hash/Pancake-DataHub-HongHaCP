@@ -175,6 +175,36 @@ body {
   color: var(--accent);
 }
 
+.security-alerts-button {
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.security-alerts-button.has-alerts {
+  border-color: #d68a80;
+  color: var(--danger);
+}
+
+.security-alert-count {
+  min-width: 18px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: #fff;
+  font-size: 9px;
+  line-height: 1.4;
+  text-align: center;
+}
+
 .staff-dialog {
   width: min(1120px, calc(100% - 32px));
 }
@@ -658,6 +688,88 @@ body {
 
 .audit-result-skipped {
   color: var(--warning);
+}
+
+.audit-result-warning {
+  color: var(--warning);
+}
+
+.security-alerts-dialog {
+  width: min(760px, calc(100% - 32px));
+}
+
+.security-alerts-content {
+  max-height: calc(100vh - 150px);
+  padding: 20px 24px 26px;
+  overflow-y: auto;
+}
+
+.security-alerts-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.security-alerts-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.security-alerts-list {
+  display: grid;
+  gap: 9px;
+}
+
+.security-alert-card {
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-left-width: 4px;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.security-alert-card.is-warning {
+  border-left-color: var(--warning);
+}
+
+.security-alert-card.is-blocked {
+  border-left-color: var(--danger);
+}
+
+.security-alert-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.security-alert-card-heading strong {
+  font-size: 13px;
+}
+
+.security-alert-status {
+  color: var(--danger);
+  font-size: 9px;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+}
+
+.security-alert-identity,
+.security-alert-origin {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.security-alert-card p {
+  margin: 9px 0 0;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .audit-detail {
