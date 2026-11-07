@@ -144,6 +144,7 @@ services:
   cloudflared:
     image: cloudflare/cloudflared:2026.10.7
     restart: unless-stopped
+    user: "${CLOUDFLARED_UID:-1000}:${CLOUDFLARED_GID:-1000}"
     command:
       - tunnel
       - --no-autoupdate

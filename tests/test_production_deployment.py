@@ -29,6 +29,7 @@ def test_production_compose_uses_outbound_only_cloudflare_tunnel() -> None:
     assert "--proxy-headers" in api_section
     assert "--no-access-log" in api_section
     assert "cloudflare/cloudflared:2026.10.7" in tunnel_section
+    assert 'user: "${CLOUDFLARED_UID:-1000}:${CLOUDFLARED_GID:-1000}"' in tunnel_section
     assert "--token-file" in tunnel_section
     assert "/run/secrets/cloudflare_tunnel_token" in tunnel_section
 
