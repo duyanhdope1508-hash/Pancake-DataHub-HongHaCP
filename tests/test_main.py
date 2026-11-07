@@ -168,6 +168,26 @@ def test_staff_read_quota_has_burst_and_hourly_limits() -> None:
     ]
 
 
+def test_staff_detail_quota_has_no_five_minute_burst_limit() -> None:
+    user = User(
+        id="staff-1",
+        username="staff",
+        display_name="Staff",
+        password_hash="hash",
+        role="staff",
+        is_active=True,
+    )
+    request = SimpleNamespace(
+        method="GET",
+        url=SimpleNamespace(path="/api/orders/order-1"),
+        query_params={},
+    )
+
+    assert main._read_quota_policies(request, user) == [
+        ("orders.view_detail", 1, 120, 3_600),
+    ]
+
+
 @pytest.mark.asyncio
 async def test_manual_sync_starts_background_job_and_returns_immediately(monkeypatch) -> None:
     async def fake_run_cycle(_settings) -> dict:

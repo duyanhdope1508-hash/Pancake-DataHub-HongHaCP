@@ -31,7 +31,6 @@ class Settings(BaseSettings):
     auth_staff_max_sessions: int = Field(default=2, ge=1, le=10)
     staff_order_rows_per_5_minutes: int = Field(default=300, ge=20, le=10_000)
     staff_order_rows_per_hour: int = Field(default=2_000, ge=100, le=100_000)
-    staff_order_details_per_5_minutes: int = Field(default=20, ge=5, le=1_000)
     staff_order_details_per_hour: int = Field(default=120, ge=10, le=10_000)
     admin_order_rows_per_hour: int = Field(default=20_000, ge=1_000, le=1_000_000)
     admin_order_details_per_hour: int = Field(default=1_200, ge=100, le=100_000)

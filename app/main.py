@@ -259,18 +259,7 @@ def _read_quota_policies(
             if user.role == "admin"
             else settings.staff_order_details_per_hour
         )
-        policies = [("orders.view_detail", 1, limit, 3_600)]
-        if user.role == "staff":
-            policies.insert(
-                0,
-                (
-                    "orders.view_detail.burst",
-                    1,
-                    settings.staff_order_details_per_5_minutes,
-                    300,
-                ),
-            )
-        return policies
+        return [("orders.view_detail", 1, limit, 3_600)]
     return []
 
 
