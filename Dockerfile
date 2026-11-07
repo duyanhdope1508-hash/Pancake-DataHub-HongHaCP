@@ -9,7 +9,9 @@ COPY pyproject.toml ./
 COPY app ./app
 COPY frontend ./frontend
 
-RUN pip install --no-cache-dir . \
+RUN chmod -R a=rX /app/app /app/frontend \
+    && chmod 0644 /app/pyproject.toml \
+    && pip install --no-cache-dir . \
     && addgroup --system app \
     && adduser --system --ingroup app --home /home/app app
 

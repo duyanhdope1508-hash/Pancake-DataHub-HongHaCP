@@ -15,6 +15,12 @@ def test_production_deployment_files_exist() -> None:
         assert (ROOT / relative_path).is_file()
 
 
+def test_image_normalizes_source_permissions_for_non_root_runtime() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+
+    assert "chmod -R a=rX /app/app /app/frontend" in dockerfile
+
+
 def test_production_compose_uses_outbound_only_cloudflare_tunnel() -> None:
     compose = (ROOT / "compose.production.yaml").read_text(encoding="utf-8")
     db_section, api_section = compose.split("  api:", 1)
