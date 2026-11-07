@@ -41,6 +41,9 @@ const elements = {
   securityAlertsList: document.querySelector("#securityAlertsList"),
   securityAlertsEmpty: document.querySelector("#securityAlertsEmpty"),
   securityAlertsError: document.querySelector("#securityAlertsError"),
+  helpButton: document.querySelector("#helpButton"),
+  helpDialog: document.querySelector("#helpDialog"),
+  closeHelpDialog: document.querySelector("#closeHelpDialog"),
   changePasswordButton: document.querySelector("#changePasswordButton"),
   logoutButton: document.querySelector("#logoutButton"),
   passwordDialog: document.querySelector("#passwordDialog"),
@@ -445,6 +448,7 @@ function showLogin(message = "") {
   if (elements.passwordDialog.open) elements.passwordDialog.close();
   if (elements.auditDialog.open) elements.auditDialog.close();
   if (elements.securityAlertsDialog.open) elements.securityAlertsDialog.close();
+  if (elements.helpDialog.open) elements.helpDialog.close();
   elements.passwordForm.reset();
   elements.appShell.hidden = true;
   elements.loginShell.hidden = false;
@@ -1774,6 +1778,11 @@ elements.filterForm.addEventListener("submit", (event) => {
 
 elements.loginForm.addEventListener("submit", login);
 elements.logoutButton.addEventListener("click", logout);
+elements.helpButton.addEventListener("click", () => elements.helpDialog.showModal());
+elements.closeHelpDialog.addEventListener("click", () => elements.helpDialog.close());
+elements.helpDialog.addEventListener("click", (event) => {
+  if (event.target === elements.helpDialog) elements.helpDialog.close();
+});
 elements.changePasswordButton.addEventListener("click", () => openPasswordChange(false));
 elements.passwordForm.addEventListener("submit", saveOwnPassword);
 elements.closePasswordDialog.addEventListener("click", closePasswordChange);

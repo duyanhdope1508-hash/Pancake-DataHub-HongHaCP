@@ -6,8 +6,8 @@
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
     <link rel="icon" href="/assets/favicon.svg?v=1" type="image/svg+xml" />
-    <link rel="stylesheet" href="/assets/styles.css?v=32" />
-    <script src="/assets/app.js?v=32" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=33" />
+    <script src="/assets/app.js?v=33" defer></script>
   </head>
   <body>
     <main id="loginShell" class="login-shell" hidden>
@@ -57,6 +57,7 @@
             Cảnh báo
             <span id="securityAlertCount" class="security-alert-count" hidden>0</span>
           </button>
+          <button id="helpButton" class="manage-staff-button" type="button">Hướng dẫn</button>
           <button id="changePasswordButton" class="logout-button" type="button">Đổi mật khẩu</button>
           <button id="logoutButton" class="logout-button" type="button">Đăng xuất</button>
           <div class="system-state">
@@ -312,6 +313,86 @@
         <span>Developed by Daniel Ng</span>
       </footer>
     </div>
+
+    <dialog id="helpDialog" class="help-dialog" aria-labelledby="helpDialogTitle">
+      <div class="dialog-header">
+        <div>
+          <p class="section-kicker">Dành cho nhân viên</p>
+          <h2 id="helpDialogTitle">Hướng dẫn sử dụng DataHub</h2>
+        </div>
+        <button id="closeHelpDialog" class="icon-button" type="button" aria-label="Đóng">×</button>
+      </div>
+      <div class="help-dialog-content">
+        <section class="help-intro" aria-labelledby="helpQuickTitle">
+          <div>
+            <span class="help-eyebrow">Bắt đầu nhanh</span>
+            <h3 id="helpQuickTitle">Tìm đúng đơn trong vài bước</h3>
+            <p>Nhập thông tin đang có, thu hẹp bằng bộ lọc rồi mở chi tiết đơn cần kiểm tra.</p>
+          </div>
+          <ol class="help-quick-list">
+            <li><span>1</span>Nhập tên khách, số điện thoại, mã đơn hoặc mã vận đơn.</li>
+            <li><span>2</span>Chọn cửa hàng, Page và tình trạng đơn nếu cần.</li>
+            <li><span>3</span>Nhấn <strong>Áp dụng</strong>, sau đó mở chi tiết ở cuối dòng đơn hàng.</li>
+          </ol>
+        </section>
+
+        <div class="help-guide-grid">
+          <section class="help-guide-card">
+            <span class="help-card-number">01</span>
+            <div>
+              <h3>Tra cứu chính xác</h3>
+              <p>Tìm theo tên đầy đủ sẽ ưu tiên đúng người có tên trùng khớp. Với số điện thoại, mã đơn hoặc mã vận đơn, có thể nhập phần thông tin đang nhớ.</p>
+            </div>
+          </section>
+          <section class="help-guide-card">
+            <span class="help-card-number">02</span>
+            <div>
+              <h3>Kết hợp nhiều bộ lọc</h3>
+              <p>Các điều kiện được áp dụng đồng thời. Mở <strong>Bộ lọc nâng cao</strong> để lọc sản phẩm, vận chuyển, ngày, giá trị, mã vận đơn và hoàn hàng.</p>
+            </div>
+          </section>
+          <section class="help-guide-card">
+            <span class="help-card-number">03</span>
+            <div>
+              <h3>Phân biệt cửa hàng và Page</h3>
+              <p><strong>Cửa hàng</strong> là shop Pancake POS chứa đơn. <strong>Page</strong> là trang Facebook ghi nhận trên chính đơn hàng.</p>
+            </div>
+          </section>
+          <section class="help-guide-card">
+            <span class="help-card-number">04</span>
+            <div>
+              <h3>Gom khách để dễ kiểm tra</h3>
+              <p>Chọn <strong>Gom theo khách hàng</strong> để đặt các đơn cùng số điện thoại hoặc tên gần nhau. Cách sắp xếp này không tự động hợp nhất hồ sơ khách.</p>
+            </div>
+          </section>
+          <section class="help-guide-card">
+            <span class="help-card-number">05</span>
+            <div>
+              <h3>Chọn và xuất Excel</h3>
+              <p>Tích từng đơn, chọn cả trang hoặc chọn toàn bộ kết quả đang lọc. Nhân viên được xuất tối đa 500 đơn mỗi file, 5 lần mỗi giờ và 2.000 đơn trong 24 giờ.</p>
+            </div>
+          </section>
+          <section class="help-guide-card">
+            <span class="help-card-number">06</span>
+            <div>
+              <h3>Lưu bộ lọc thường dùng</h3>
+              <p>Đặt tên rồi nhấn <strong>Lưu bộ lọc</strong>. Bộ lọc chỉ được lưu trên trình duyệt và máy đang sử dụng, không tự chuyển sang máy khác.</p>
+            </div>
+          </section>
+        </div>
+
+        <section class="help-note" aria-labelledby="helpDataTitle">
+          <div>
+            <h3 id="helpDataTitle">Dữ liệu được cập nhật thế nào?</h3>
+            <p>Hệ thống tự lấy đơn mới khoảng 12 giờ một lần. F5 chỉ tải lại dữ liệu đã có; nút <strong>Đồng bộ ngay</strong> chỉ dành cho quản trị viên.</p>
+          </div>
+          <div>
+            <h3>Bảo vệ dữ liệu khách hàng</h3>
+            <p>Không dùng chung tài khoản, không chuyển file xuất cho người không có nhiệm vụ và luôn đăng xuất khi rời máy. Các thao tác quan trọng đều được ghi nhật ký.</p>
+          </div>
+        </section>
+      </div>
+    </dialog>
 
     <dialog id="staffDialog" class="staff-dialog" aria-labelledby="staffDialogTitle">
       <div class="dialog-header">

@@ -14,8 +14,8 @@ def test_frontend_uses_versioned_assets() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
     assert 'href="/assets/favicon.svg?v=1"' in html
-    assert 'href="/assets/styles.css?v=32"' in html
-    assert 'src="/assets/app.js?v=32"' in html
+    assert 'href="/assets/styles.css?v=33"' in html
+    assert 'src="/assets/app.js?v=33"' in html
 
 
 def test_overview_counts_refresh_without_reloading_the_page() -> None:
@@ -241,6 +241,9 @@ def test_frontend_has_search_filters_and_dialog() -> None:
         'id="pageJumpForm"',
         'id="pageJumpInput"',
         'id="orderDialog"',
+        'id="helpButton"',
+        'id="helpDialog"',
+        'id="closeHelpDialog"',
     ):
         assert element_id in html
     assert "paginationTokens" in javascript
@@ -252,6 +255,10 @@ def test_frontend_has_search_filters_and_dialog() -> None:
     assert 'selection_mode: state.allMatchingSelected ? "filtered" : "selected"' in javascript
     assert 'secureFetch("/api/orders/export"' in javascript
     assert "state.appliedExportFilters = exportFilters" in javascript
+    assert 'elements.helpDialog.showModal()' in javascript
+    assert 'elements.helpDialog.close()' in javascript
+    assert "Nhân viên được xuất tối đa 500 đơn mỗi file" in html
+    assert "Hệ thống tự lấy đơn mới khoảng 12 giờ một lần" in html
 
 
 def test_frontend_saved_filters_are_local_and_bounded() -> None:
