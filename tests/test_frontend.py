@@ -12,8 +12,8 @@ def test_frontend_assets_exist() -> None:
 def test_frontend_uses_versioned_assets() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
-    assert 'href="/assets/styles.css?v=31"' in html
-    assert 'src="/assets/app.js?v=31"' in html
+    assert 'href="/assets/styles.css?v=32"' in html
+    assert 'src="/assets/app.js?v=32"' in html
 
 
 def test_overview_counts_refresh_without_reloading_the_page() -> None:
@@ -64,6 +64,22 @@ def test_authenticated_ui_discourages_common_inspection_shortcuts() -> None:
     assert '["I", "J", "C"]' in javascript
     assert 'key === "U"' in javascript
     assert "event.preventDefault()" in javascript
+
+
+def test_docked_devtools_activates_full_screen_privacy_shield() -> None:
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+    css = (FRONTEND / "styles.css").read_text(encoding="utf-8")
+
+    assert 'id="devtoolsPrivacyShield"' in html
+    assert "devtoolsLikelyDocked" in javascript
+    assert "window.outerWidth - window.innerWidth" in javascript
+    assert "window.outerHeight - window.innerHeight" in javascript
+    assert 'classList.toggle("devtools-privacy-active", active)' in javascript
+    assert "window.setInterval(updateDevtoolsPrivacyShield, 750)" in javascript
+    assert ".devtools-privacy-shield" in css
+    assert "body.devtools-privacy-active .app-shell" in css
+    assert "filter: blur(22px)" in css
 
 
 def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:

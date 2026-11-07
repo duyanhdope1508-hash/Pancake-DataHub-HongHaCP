@@ -28,6 +28,7 @@ const elements = {
   appShell: document.querySelector("#appShell"),
   screenWatermark: document.querySelector("#screenWatermark"),
   inspectionNotice: document.querySelector("#inspectionNotice"),
+  devtoolsPrivacyShield: document.querySelector("#devtoolsPrivacyShield"),
   currentUserName: document.querySelector("#currentUserName"),
   currentUserRole: document.querySelector("#currentUserRole"),
   manageStaffButton: document.querySelector("#manageStaffButton"),
@@ -152,6 +153,7 @@ const elements = {
 
 const SAVED_FILTERS_STORAGE_KEY = "pancakeDataHub.savedFilters.v1";
 const MAX_SAVED_FILTERS = 20;
+const DEVTOOLS_SIZE_THRESHOLD = 180;
 const AUDIT_ACTION_LABELS = {
   "auth.login": "Đăng nhập",
   "auth.logout": "Đăng xuất",
@@ -488,6 +490,20 @@ function isBlockedInspectionShortcut(event) {
   if (event.ctrlKey && event.shiftKey && ["I", "J", "C"].includes(key)) return true;
   if (event.ctrlKey && key === "U") return true;
   return event.metaKey && event.altKey && ["I", "J", "C", "U"].includes(key);
+}
+
+function devtoolsLikelyDocked() {
+  const desktopSized = window.outerWidth >= 900 && window.outerHeight >= 600;
+  if (!desktopSized) return false;
+  const widthGap = Math.max(0, window.outerWidth - window.innerWidth);
+  const heightGap = Math.max(0, window.outerHeight - window.innerHeight);
+  return widthGap > DEVTOOLS_SIZE_THRESHOLD || heightGap > DEVTOOLS_SIZE_THRESHOLD;
+}
+
+function updateDevtoolsPrivacyShield() {
+  const active = devtoolsLikelyDocked();
+  document.body.classList.toggle("devtools-privacy-active", active);
+  elements.devtoolsPrivacyShield.hidden = !active;
 }
 
 function showApplication(user) {
@@ -1944,6 +1960,9 @@ async function initialize() {
 }
 
 initialize();
+updateDevtoolsPrivacyShield();
+window.setInterval(updateDevtoolsPrivacyShield, 750);
+window.addEventListener("resize", updateDevtoolsPrivacyShield);
 window.setInterval(() => {
   if (!state.currentUser || document.hidden) return;
   loadSystemStatus().catch(() => {

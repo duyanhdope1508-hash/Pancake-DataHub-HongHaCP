@@ -80,6 +80,47 @@ body {
   pointer-events: none;
 }
 
+.devtools-privacy-shield {
+  position: fixed;
+  z-index: 30000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(238, 242, 237, 0.94);
+  backdrop-filter: blur(28px);
+}
+
+.devtools-privacy-shield > div {
+  max-width: 460px;
+  display: grid;
+  gap: 8px;
+  padding: 24px 28px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: rgba(255, 254, 250, 0.96);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.devtools-privacy-shield strong {
+  color: var(--danger);
+  font-size: 17px;
+}
+
+.devtools-privacy-shield span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+body.devtools-privacy-active .login-shell,
+body.devtools-privacy-active .app-shell {
+  filter: blur(22px);
+  pointer-events: none;
+  user-select: none;
+}
+
 .login-shell {
   min-height: 100vh;
   display: grid;
