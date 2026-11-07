@@ -37,3 +37,15 @@ def test_resume_uses_the_previous_run_start_page() -> None:
     latest = SyncRun(status="cancelled", start_page=582, rows_seen=200)
 
     assert _resume_page(settings, latest) == 584
+
+
+def test_resume_continues_after_stale_running_run() -> None:
+    settings = Settings(
+        _env_file=None,
+        pancake_resume_backfill=True,
+        pancake_page_size=100,
+        pancake_start_page=1,
+    )
+    latest = SyncRun(status="running", start_page=1, rows_seen=13_200)
+
+    assert _resume_page(settings, latest) == 133

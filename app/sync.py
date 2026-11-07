@@ -76,7 +76,7 @@ def _resume_page(settings: Settings, latest_run: SyncRun | None) -> int | None:
         return settings.pancake_start_page
     if latest_run.status == "success":
         return None
-    if latest_run.status not in {"cancelled", "failed"}:
+    if latest_run.status not in {"cancelled", "failed", "running"}:
         return settings.pancake_start_page
 
     completed_pages = latest_run.rows_seen // settings.pancake_page_size
@@ -138,6 +138,13 @@ async def _sync_connector(
                         .order_by(SyncRun.started_at.desc())
                         .limit(1)
                     )
+                    if latest_backfill is not None and latest_backfill.status == "running":
+                        latest_backfill.status = "cancelled"
+                        latest_backfill.error = (
+                            "Previous worker stopped before the backfill completed"
+                        )
+                        latest_backfill.finished_at = datetime.now(UTC)
+                        session.commit()
                     page_number = _resume_page(settings, latest_backfill)
                     if page_number is None:
                         result["shops_skipped"] += 1
