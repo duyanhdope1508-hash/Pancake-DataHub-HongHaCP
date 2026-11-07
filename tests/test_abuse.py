@@ -97,3 +97,39 @@ def test_expired_quota_window_resets_before_counting() -> None:
     assert decision.allowed is True
     assert bucket.usage_count == 20
     assert bucket.last_denied_at is None
+
+
+def test_quota_alerts_once_when_eighty_percent_is_crossed() -> None:
+    now = datetime(2026, 11, 6, 10, 0, tzinfo=UTC)
+    bucket = UsageQuota(
+        key_hash="d" * 64,
+        user_id="staff-1",
+        action="orders.list.rows.burst",
+        window_started_at=now,
+        usage_count=220,
+    )
+    session = Mock()
+    session.scalar.return_value = bucket
+
+    first = consume_quota(
+        session,
+        user_id="staff-1",
+        action="orders.list.rows.burst",
+        amount=20,
+        limit=300,
+        window_seconds=300,
+        now=now,
+    )
+    second = consume_quota(
+        session,
+        user_id="staff-1",
+        action="orders.list.rows.burst",
+        amount=20,
+        limit=300,
+        window_seconds=300,
+        now=now + timedelta(seconds=1),
+    )
+
+    assert first.should_alert is True
+    assert first.used == 240
+    assert second.should_alert is False

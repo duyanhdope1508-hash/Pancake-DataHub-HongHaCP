@@ -219,12 +219,12 @@ def _audit_client(request: Request) -> tuple[str | None, str | None]:
     return ip_address, user_agent
 
 
-def _read_quota_policy(
+def _read_quota_policies(
     request: Request,
     user: User,
-) -> tuple[str, int, int, int] | None:
+) -> list[tuple[str, int, int, int]]:
     if request.method != "GET":
-        return None
+        return []
     settings = get_settings()
     path = request.url.path
     if path == "/api/orders":
@@ -238,7 +238,18 @@ def _read_quota_policy(
             if user.role == "admin"
             else settings.staff_order_rows_per_hour
         )
-        return "orders.list.rows", amount, limit, 3_600
+        policies = [("orders.list.rows", amount, limit, 3_600)]
+        if user.role == "staff":
+            policies.insert(
+                0,
+                (
+                    "orders.list.rows.burst",
+                    amount,
+                    settings.staff_order_rows_per_5_minutes,
+                    300,
+                ),
+            )
+        return policies
     if path.startswith("/api/orders/") and path not in {
         "/api/orders/export",
         "/api/orders/summary",
@@ -248,8 +259,19 @@ def _read_quota_policy(
             if user.role == "admin"
             else settings.staff_order_details_per_hour
         )
-        return "orders.view_detail", 1, limit, 3_600
-    return None
+        policies = [("orders.view_detail", 1, limit, 3_600)]
+        if user.role == "staff":
+            policies.insert(
+                0,
+                (
+                    "orders.view_detail.burst",
+                    1,
+                    settings.staff_order_details_per_5_minutes,
+                    300,
+                ),
+            )
+        return policies
+    return []
 
 
 def _rate_limit_response(decision: QuotaDecision) -> JSONResponse:
@@ -291,6 +313,36 @@ def _record_quota_denial(
     )
 
 
+def _add_high_usage_alert(
+    session,
+    request: Request,
+    *,
+    actor: User,
+    quota: str,
+    decision: QuotaDecision,
+    window_seconds: int,
+) -> None:
+    ip_address, user_agent = _audit_client(request)
+    session.add(
+        AuditLog(
+            actor_user_id=actor.id,
+            action="security.high_usage",
+            resource_type="api",
+            resource_id=quota,
+            result="warning",
+            metadata_json={
+                "quota": quota,
+                "used": decision.used,
+                "limit": decision.limit,
+                "window_seconds": window_seconds,
+                "percent": round(decision.used * 100 / decision.limit),
+            },
+            ip_address=ip_address,
+            user_agent=user_agent,
+        )
+    )
+
+
 @lru_cache(maxsize=128)
 def _cached_order_filters(
     time_bucket: int,
@@ -328,8 +380,8 @@ async def security_headers(request: Request, call_next):
         with SessionLocal() as session:
             authenticated = authenticate_user_session(session, raw_token)
             if authenticated is not None:
-                policy = _read_quota_policy(request, authenticated.user)
-                if policy is not None:
+                policies = _read_quota_policies(request, authenticated.user)
+                for policy in policies:
                     action, amount, limit, window_seconds = policy
                     decision = consume_quota(
                         session,
@@ -339,6 +391,15 @@ async def security_headers(request: Request, call_next):
                         limit=limit,
                         window_seconds=window_seconds,
                     )
+                    if decision.should_alert:
+                        _add_high_usage_alert(
+                            session,
+                            request,
+                            actor=authenticated.user,
+                            quota=action,
+                            decision=decision,
+                            window_seconds=window_seconds,
+                        )
                     if not decision.allowed:
                         if decision.should_log_denial:
                             ip_address, user_agent = _audit_client(request)
@@ -360,7 +421,8 @@ async def security_headers(request: Request, call_next):
                                 )
                             )
                         rate_limited_response = _rate_limit_response(decision)
-                    session.commit()
+                        break
+                session.commit()
         if authenticated is None:
             response = JSONResponse(
                 status_code=401,
@@ -996,6 +1058,15 @@ def _export_orders_response(
                 limit=settings.staff_exports_per_hour,
                 window_seconds=3_600,
             )
+            if hourly_decision.should_alert:
+                _add_high_usage_alert(
+                    session,
+                    request,
+                    actor=actor,
+                    quota="orders.export.requests",
+                    decision=hourly_decision,
+                    window_seconds=3_600,
+                )
             session.commit()
             if not hourly_decision.allowed:
                 output_path.unlink(missing_ok=True)
@@ -1021,6 +1092,15 @@ def _export_orders_response(
                 limit=settings.staff_export_rows_per_day,
                 window_seconds=86_400,
             )
+            if daily_decision.should_alert:
+                _add_high_usage_alert(
+                    session,
+                    request,
+                    actor=actor,
+                    quota="orders.export.rows",
+                    decision=daily_decision,
+                    window_seconds=86_400,
+                )
             session.commit()
             if not daily_decision.allowed:
                 output_path.unlink(missing_ok=True)

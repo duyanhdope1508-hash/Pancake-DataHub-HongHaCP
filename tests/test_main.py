@@ -146,7 +146,7 @@ def test_audit_client_uses_server_observed_ip_and_bounds_user_agent() -> None:
     assert len(user_agent) == 512
 
 
-def test_staff_read_quota_counts_requested_order_rows() -> None:
+def test_staff_read_quota_has_burst_and_hourly_limits() -> None:
     user = User(
         id="staff-1",
         username="staff",
@@ -161,12 +161,10 @@ def test_staff_read_quota_counts_requested_order_rows() -> None:
         query_params={"page_size": "100"},
     )
 
-    assert main._read_quota_policy(request, user) == (
-        "orders.list.rows",
-        100,
-        2_000,
-        3_600,
-    )
+    assert main._read_quota_policies(request, user) == [
+        ("orders.list.rows.burst", 100, 300, 300),
+        ("orders.list.rows", 100, 2_000, 3_600),
+    ]
 
 
 @pytest.mark.asyncio

@@ -16,6 +16,7 @@ class QuotaDecision:
     limit: int
     retry_after: int
     should_log_denial: bool = False
+    should_alert: bool = False
 
 
 def _quota_key(user_id: str, action: str, window_seconds: int) -> str:
@@ -82,11 +83,14 @@ def consume_quota(
             should_log_denial=should_log,
         )
 
+    previous_usage = bucket.usage_count
     bucket.usage_count = projected
+    alert_threshold = max(1, (limit * 80 + 99) // 100)
     session.flush()
     return QuotaDecision(
         allowed=True,
         used=bucket.usage_count,
         limit=limit,
         retry_after=retry_after,
+        should_alert=previous_usage < alert_threshold <= projected,
     )
