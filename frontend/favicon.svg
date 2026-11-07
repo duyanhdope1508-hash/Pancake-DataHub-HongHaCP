@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Hồng Hà CP DataHub">
+  <rect width="64" height="64" rx="14" fill="#173d2f"/>
+  <ellipse cx="32" cy="19" rx="18" ry="8" fill="#dcefe5"/>
+  <path d="M14 19v10c0 4.4 8.1 8 18 8s18-3.6 18-8V19c0 4.4-8.1 8-18 8s-18-3.6-18-8Z" fill="#58a77f"/>
+  <path d="M14 29v10c0 4.4 8.1 8 18 8s18-3.6 18-8V29c0 4.4-8.1 8-18 8s-18-3.6-18-8Z" fill="#2f8762"/>
+  <path d="M14 39v6c0 4.4 8.1 8 18 8s18-3.6 18-8v-6c0 4.4-8.1 8-18 8s-18-3.6-18-8Z" fill="#1e6b4d"/>
+  <path d="M20 19c2.8-2.1 7-3.3 12-3.3S41.2 16.9 44 19c-2.8 2.1-7 3.3-12 3.3S22.8 21.1 20 19Z" fill="#1e6b4d"/>
+</svg>

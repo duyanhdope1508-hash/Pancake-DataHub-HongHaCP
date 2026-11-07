@@ -7,11 +7,13 @@ def test_frontend_assets_exist() -> None:
     assert (FRONTEND / "index.html").is_file()
     assert (FRONTEND / "styles.css").is_file()
     assert (FRONTEND / "app.js").is_file()
+    assert (FRONTEND / "favicon.svg").is_file()
 
 
 def test_frontend_uses_versioned_assets() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
+    assert 'href="/assets/favicon.svg?v=1"' in html
     assert 'href="/assets/styles.css?v=32"' in html
     assert 'src="/assets/app.js?v=32"' in html
 
