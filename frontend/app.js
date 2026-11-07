@@ -15,6 +15,7 @@ const state = {
   appliedExportFilters: {},
   watermarkTimer: null,
   securityAlertTimer: null,
+  inspectionNoticeTimer: null,
 };
 
 const elements = {
@@ -26,6 +27,7 @@ const elements = {
   loginButton: document.querySelector("#loginButton"),
   appShell: document.querySelector("#appShell"),
   screenWatermark: document.querySelector("#screenWatermark"),
+  inspectionNotice: document.querySelector("#inspectionNotice"),
   currentUserName: document.querySelector("#currentUserName"),
   currentUserRole: document.querySelector("#currentUserRole"),
   manageStaffButton: document.querySelector("#manageStaffButton"),
@@ -393,6 +395,11 @@ function showLogin(message = "") {
     state.watermarkTimer = null;
   }
   elements.screenWatermark.replaceChildren();
+  if (state.inspectionNoticeTimer !== null) {
+    window.clearTimeout(state.inspectionNoticeTimer);
+    state.inspectionNoticeTimer = null;
+  }
+  elements.inspectionNotice.hidden = true;
   if (state.securityAlertTimer !== null) {
     window.clearInterval(state.securityAlertTimer);
     state.securityAlertTimer = null;
@@ -462,6 +469,25 @@ function renderScreenWatermark() {
     return mark;
   });
   elements.screenWatermark.replaceChildren(...marks);
+}
+
+function showInspectionNotice() {
+  elements.inspectionNotice.hidden = false;
+  if (state.inspectionNoticeTimer !== null) {
+    window.clearTimeout(state.inspectionNoticeTimer);
+  }
+  state.inspectionNoticeTimer = window.setTimeout(() => {
+    elements.inspectionNotice.hidden = true;
+    state.inspectionNoticeTimer = null;
+  }, 2_500);
+}
+
+function isBlockedInspectionShortcut(event) {
+  const key = event.key.toUpperCase();
+  if (key === "F12") return true;
+  if (event.ctrlKey && event.shiftKey && ["I", "J", "C"].includes(key)) return true;
+  if (event.ctrlKey && key === "U") return true;
+  return event.metaKey && event.altKey && ["I", "J", "C", "U"].includes(key);
 }
 
 function showApplication(user) {
@@ -1887,6 +1913,19 @@ elements.pageJumpForm.addEventListener("submit", (event) => {
 elements.closeDialog.addEventListener("click", () => elements.orderDialog.close());
 elements.orderDialog.addEventListener("click", (event) => {
   if (event.target === elements.orderDialog) elements.orderDialog.close();
+});
+
+document.addEventListener("contextmenu", (event) => {
+  if (!state.currentUser) return;
+  event.preventDefault();
+  showInspectionNotice();
+});
+
+document.addEventListener("keydown", (event) => {
+  if (!state.currentUser || !isBlockedInspectionShortcut(event)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  showInspectionNotice();
 });
 
 async function initialize() {

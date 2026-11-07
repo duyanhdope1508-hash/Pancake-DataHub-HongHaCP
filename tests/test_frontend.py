@@ -12,8 +12,8 @@ def test_frontend_assets_exist() -> None:
 def test_frontend_uses_versioned_assets() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
-    assert 'href="/assets/styles.css?v=30"' in html
-    assert 'src="/assets/app.js?v=30"' in html
+    assert 'href="/assets/styles.css?v=31"' in html
+    assert 'src="/assets/app.js?v=31"' in html
 
 
 def test_overview_counts_refresh_without_reloading_the_page() -> None:
@@ -51,6 +51,19 @@ def test_authenticated_screen_is_watermarked_per_account() -> None:
     assert "60_000" in javascript
     assert ".screen-watermark" in css
     assert "pointer-events: none" in css
+
+
+def test_authenticated_ui_discourages_common_inspection_shortcuts() -> None:
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="inspectionNotice"' in html
+    assert 'addEventListener("contextmenu"' in javascript
+    assert 'addEventListener("keydown"' in javascript
+    assert 'key === "F12"' in javascript
+    assert '["I", "J", "C"]' in javascript
+    assert 'key === "U"' in javascript
+    assert "event.preventDefault()" in javascript
 
 
 def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:
