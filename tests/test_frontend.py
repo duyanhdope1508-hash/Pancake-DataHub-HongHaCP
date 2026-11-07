@@ -12,8 +12,8 @@ def test_frontend_assets_exist() -> None:
 def test_frontend_uses_versioned_assets() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
-    assert 'href="/assets/styles.css?v=28"' in html
-    assert 'src="/assets/app.js?v=28"' in html
+    assert 'href="/assets/styles.css?v=29"' in html
+    assert 'src="/assets/app.js?v=29"' in html
 
 
 def test_overview_counts_refresh_without_reloading_the_page() -> None:
@@ -38,6 +38,19 @@ def test_frontend_requires_login_before_loading_data() -> None:
     assert "user.can_sync" in javascript
     assert "user.can_view_revenue" in javascript
     assert "tối đa 500 đơn/file, 5 lần/giờ và 2.000 đơn/24 giờ" in javascript
+
+
+def test_authenticated_screen_is_watermarked_per_account() -> None:
+    html = (FRONTEND / "index.html").read_text(encoding="utf-8")
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+    css = (FRONTEND / "styles.css").read_text(encoding="utf-8")
+
+    assert 'id="screenWatermark"' in html
+    assert "renderScreenWatermark" in javascript
+    assert "state.currentUser.username" in javascript
+    assert "60_000" in javascript
+    assert ".screen-watermark" in css
+    assert "pointer-events: none" in css
 
 
 def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:

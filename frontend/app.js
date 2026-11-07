@@ -13,6 +13,7 @@ const state = {
   allMatchingSelected: false,
   totalMatchingOrders: 0,
   appliedExportFilters: {},
+  watermarkTimer: null,
 };
 
 const elements = {
@@ -23,6 +24,7 @@ const elements = {
   loginError: document.querySelector("#loginError"),
   loginButton: document.querySelector("#loginButton"),
   appShell: document.querySelector("#appShell"),
+  screenWatermark: document.querySelector("#screenWatermark"),
   currentUserName: document.querySelector("#currentUserName"),
   currentUserRole: document.querySelector("#currentUserRole"),
   manageStaffButton: document.querySelector("#manageStaffButton"),
@@ -376,6 +378,11 @@ function secureFetch(url, options = {}) {
 }
 
 function showLogin(message = "") {
+  if (state.watermarkTimer !== null) {
+    window.clearInterval(state.watermarkTimer);
+    state.watermarkTimer = null;
+  }
+  elements.screenWatermark.replaceChildren();
   state.currentUser = null;
   state.staffManagement = null;
   state.passwordChangeRequired = false;
@@ -424,8 +431,29 @@ function showLogin(message = "") {
   elements.loginUsername.focus();
 }
 
+function renderScreenWatermark() {
+  if (!state.currentUser) return;
+  const timestamp = new Intl.DateTimeFormat("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date());
+  const label = `${text(state.currentUser.display_name, state.currentUser.username)} · @${state.currentUser.username} · ${timestamp}`;
+  const marks = Array.from({ length: 30 }, () => {
+    const mark = document.createElement("span");
+    mark.textContent = label;
+    return mark;
+  });
+  elements.screenWatermark.replaceChildren(...marks);
+}
+
 function showApplication(user) {
   state.currentUser = user;
+  renderScreenWatermark();
+  if (state.watermarkTimer !== null) window.clearInterval(state.watermarkTimer);
+  state.watermarkTimer = window.setInterval(renderScreenWatermark, 60_000);
   elements.currentUserName.textContent = text(user.display_name, user.username);
   elements.currentUserRole.textContent = user.role === "admin" ? "Quản trị viên" : "Nhân viên";
   elements.manageStaffButton.hidden = user.role !== "admin";
