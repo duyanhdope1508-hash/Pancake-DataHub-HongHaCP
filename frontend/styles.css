@@ -574,6 +574,27 @@ body.devtools-privacy-active .app-shell {
   font-size: 10px;
 }
 
+.staff-card-actions {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 6px;
+}
+
+.delete-staff-button {
+  padding: 7px 9px;
+  border: 1px solid rgba(163, 61, 50, 0.28);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--danger);
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.delete-staff-button:hover {
+  border-color: var(--danger);
+  background: #fff1ef;
+}
+
 .password-dialog {
   width: min(480px, calc(100% - 32px));
 }

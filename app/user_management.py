@@ -86,7 +86,7 @@ def update_staff(
     password: str | None = None,
 ) -> User:
     user = session.get(User, user_id)
-    if user is None or user.role != "staff":
+    if user is None or user.role != "staff" or user.deleted_at is not None:
         raise StaffNotFoundError(user_id)
 
     clean_display_name = display_name.strip()
@@ -119,11 +119,33 @@ def update_staff(
     return user
 
 
+def delete_staff(session: Session, *, user_id: str) -> User:
+    user = session.get(User, user_id)
+    if user is None or user.role != "staff" or user.deleted_at is not None:
+        raise StaffNotFoundError(user_id)
+
+    deleted_at = datetime.now(UTC)
+    user.is_active = False
+    user.deleted_at = deleted_at
+    session.execute(
+        delete(UserShopAccess).where(UserShopAccess.user_id == user.id)
+    )
+    session.execute(
+        update(UserSession)
+        .where(UserSession.user_id == user.id, UserSession.revoked_at.is_(None))
+        .values(revoked_at=deleted_at)
+    )
+    session.flush()
+    return user
+
+
 def management_snapshot(session: Session) -> dict[str, Any]:
     shops = session.execute(select(Shop.id, Shop.name).order_by(Shop.name, Shop.id)).all()
     users = list(
         session.scalars(
-            select(User).where(User.role == "staff").order_by(User.display_name, User.username)
+            select(User)
+            .where(User.role == "staff", User.deleted_at.is_(None))
+            .order_by(User.display_name, User.username)
         ).all()
     )
     user_ids = [user.id for user in users]

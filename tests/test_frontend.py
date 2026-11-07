@@ -14,8 +14,8 @@ def test_frontend_uses_versioned_assets() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
     assert 'href="/assets/favicon.svg?v=1"' in html
-    assert 'href="/assets/styles.css?v=33"' in html
-    assert 'src="/assets/app.js?v=33"' in html
+    assert 'href="/assets/styles.css?v=34"' in html
+    assert 'src="/assets/app.js?v=34"' in html
 
 
 def test_overview_counts_refresh_without_reloading_the_page() -> None:
@@ -187,6 +187,10 @@ def test_mutating_requests_send_session_bound_csrf_header() -> None:
     assert 'secureFetch("/api/sync"' in javascript
     assert 'fetchJson("/api/sync/status")' in javascript
     assert 'payload.status !== "started"' in javascript
+    assert '"staff.delete": "Xóa nhân viên"' in javascript
+    assert 'method: "DELETE"' in javascript
+    assert 'createElement("button", "delete-staff-button", "Xóa")' in javascript
+    assert "Đã thu hồi quyền và phiên đăng nhập" in javascript
 
 
 def test_frontend_uses_safe_dom_rendering() -> None:

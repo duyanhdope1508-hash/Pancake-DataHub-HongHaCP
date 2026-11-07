@@ -163,6 +163,7 @@ const AUDIT_ACTION_LABELS = {
   "auth.password_change": "Đổi mật khẩu",
   "staff.create": "Tạo nhân viên",
   "staff.update": "Sửa nhân viên",
+  "staff.delete": "Xóa nhân viên",
   "orders.sync": "Đồng bộ đơn",
   "orders.export": "Xuất Excel",
   "orders.view_detail": "Xem chi tiết đơn",
@@ -724,6 +725,36 @@ function beginStaffEdit(user) {
   elements.staffDisplayName.focus();
 }
 
+async function deleteStaff(user, button) {
+  const confirmed = window.confirm(
+    `Xóa nhân viên "${user.display_name}" (@${user.username})?\n\n` +
+      "Tài khoản sẽ bị đăng xuất, mất toàn bộ quyền shop và không thể đăng nhập lại.",
+  );
+  if (!confirmed) return;
+
+  button.disabled = true;
+  button.textContent = "Đang xóa…";
+  setStaffFormMessage("");
+  try {
+    const response = await secureFetch(
+      `/api/admin/users/${encodeURIComponent(user.id)}`,
+      { method: "DELETE", headers: { Accept: "application/json" } },
+    );
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 401) showLogin();
+      throw new Error(result.detail || `Yêu cầu thất bại (${response.status})`);
+    }
+    if (elements.staffUserId.value === user.id) resetStaffForm();
+    await loadStaffManagement();
+    setStaffFormMessage(`Đã xóa tài khoản @${user.username} và thu hồi mọi phiên đăng nhập.`);
+  } catch (error) {
+    setStaffFormMessage(`Không thể xóa nhân viên. ${error.message}`, true);
+    button.disabled = false;
+    button.textContent = "Xóa";
+  }
+}
+
 function renderStaffList() {
   const users = state.staffManagement?.users || [];
   const shopNames = new Map(
@@ -786,7 +817,12 @@ function renderStaffList() {
     const editButton = createElement("button", "secondary-button", "Sửa quyền");
     editButton.type = "button";
     editButton.addEventListener("click", () => beginStaffEdit(user));
-    footer.append(editButton);
+    const deleteButton = createElement("button", "delete-staff-button", "Xóa");
+    deleteButton.type = "button";
+    deleteButton.addEventListener("click", () => deleteStaff(user, deleteButton));
+    const actions = createElement("div", "staff-card-actions");
+    actions.append(editButton, deleteButton);
+    footer.append(actions);
     card.append(header, shops, footer);
     return card;
   });
@@ -910,6 +946,11 @@ function auditDetail(item) {
     if (metadata.password_changed) parts.push("Có đổi mật khẩu");
     if (metadata.active === false) parts.push("Đã khóa tài khoản");
     return parts.join(" · ") || "—";
+  }
+  if (item.action === "staff.delete") {
+    return metadata.username
+      ? `@${metadata.username} · Đã thu hồi quyền và phiên đăng nhập`
+      : "Đã thu hồi tài khoản nhân viên";
   }
   if (item.action === "auth.login" && item.result === "denied") {
     return metadata.username ? `Tài khoản: ${metadata.username}` : "Sai thông tin đăng nhập";

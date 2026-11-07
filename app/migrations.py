@@ -557,6 +557,16 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             "CREATE INDEX IF NOT EXISTS ix_audit_logs_created_at ON audit_logs (created_at)",
         ),
     ),
+    (
+        "20261108_021_add_staff_soft_delete",
+        (
+            "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ",
+            (
+                "CREATE INDEX IF NOT EXISTS ix_auth_users_active_staff "
+                "ON auth_users (role, deleted_at)"
+            ),
+        ),
+    ),
 )
 
 

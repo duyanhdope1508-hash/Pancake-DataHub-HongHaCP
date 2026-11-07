@@ -48,6 +48,13 @@ def test_system_status_route_is_registered() -> None:
         for method in route.methods
     }
     assert {"GET", "POST"} <= export_methods
+    user_delete_methods = {
+        method
+        for route in app.routes
+        if route.path == "/api/admin/users/{user_id}"
+        for method in route.methods
+    }
+    assert "DELETE" in user_delete_methods
 
 
 def test_trusted_hosts_are_configurable() -> None:

@@ -54,6 +54,7 @@ from app.user_management import (
     StaffNotFoundError,
     UnknownShopError,
     create_staff,
+    delete_staff,
     management_snapshot,
     update_staff,
 )
@@ -785,6 +786,40 @@ def admin_update_staff(
             "user_id": user.id,
             "username": user.username,
             "temporary_password": temporary_password,
+        }
+
+
+@app.delete("/api/admin/users/{user_id}")
+def admin_delete_staff(request: Request, user_id: str) -> dict:
+    actor = request.state.current_user
+    require_admin(actor)
+    ip_address, user_agent = _audit_client(request)
+    with SessionLocal() as session:
+        try:
+            user = delete_staff(session, user_id=user_id)
+        except StaffNotFoundError as exc:
+            session.rollback()
+            raise _staff_error_response(exc) from exc
+        session.add(
+            AuditLog(
+                actor_user_id=actor.id,
+                action="staff.delete",
+                resource_type="user",
+                resource_id=user.id,
+                result="success",
+                metadata_json={
+                    "username": user.username,
+                    "display_name": user.display_name,
+                },
+                ip_address=ip_address,
+                user_agent=user_agent,
+            )
+        )
+        session.commit()
+        return {
+            "status": "deleted",
+            "user_id": user.id,
+            "username": user.username,
         }
 
 
