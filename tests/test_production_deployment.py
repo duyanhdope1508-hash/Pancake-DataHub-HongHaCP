@@ -25,6 +25,8 @@ def test_production_compose_uses_outbound_only_cloudflare_tunnel() -> None:
     assert "ports:" not in api_section
     assert "ports:" not in worker_section
     assert "ports:" not in tunnel_section
+    assert 'user: "${APP_UID:-1000}:${APP_GID:-1000}"' in api_section
+    assert 'user: "${APP_UID:-1000}:${APP_GID:-1000}"' in worker_section
     assert 'AUTH_COOKIE_SECURE: "true"' in api_section
     assert "--proxy-headers" in api_section
     assert "--no-access-log" in api_section
