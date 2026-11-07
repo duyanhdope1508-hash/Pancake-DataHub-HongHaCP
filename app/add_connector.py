@@ -55,7 +55,9 @@ def write_connectors(path: Path, connectors: list[PancakeConnector]) -> None:
         json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
+    temporary_path.chmod(0o600)
     temporary_path.replace(path)
+    path.chmod(0o600)
 
 
 def main() -> None:

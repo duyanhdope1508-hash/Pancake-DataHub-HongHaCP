@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -54,6 +55,8 @@ def test_write_connectors_creates_expected_secret_file(tmp_path: Path) -> None:
         ]
     }
     assert not path.with_name("pancake_connectors.json.tmp").exists()
+    if os.name != "nt":
+        assert path.stat().st_mode & 0o077 == 0
 
 
 def test_merge_discovered_connector_adds_all_new_visible_shops() -> None:
