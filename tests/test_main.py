@@ -29,6 +29,7 @@ def _request_for(role: str) -> SimpleNamespace:
 
 def test_system_status_route_is_registered() -> None:
     paths = {route.path for route in app.routes}
+    assert "/openapi.json" not in paths
     assert "/api/system-status" in paths
     assert "/api/sync" in paths
     assert "/api/orders/summary" in paths
@@ -96,7 +97,11 @@ def test_sensitive_responses_have_browser_security_headers() -> None:
     assert response.headers["Cache-Control"] == "no-store, max-age=0"
     assert response.headers["Pragma"] == "no-cache"
     assert response.headers["Strict-Transport-Security"] == "max-age=31536000"
+    assert response.headers["X-Robots-Tag"] == (
+        "noindex, nofollow, noarchive, nosnippet, noimageindex"
+    )
     assert "frame-ancestors 'none'" in response.headers["Content-Security-Policy"]
+    assert "worker-src 'none'" in response.headers["Content-Security-Policy"]
     assert "camera=()" in response.headers["Permissions-Policy"]
 
 

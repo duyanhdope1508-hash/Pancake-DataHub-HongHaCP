@@ -73,6 +73,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="Pancake Data Platform",
     version="0.1.0",
+    openapi_url=None,
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -158,6 +159,9 @@ def _add_security_headers(
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["X-XSS-Protection"] = "0"
     response.headers["X-Permitted-Cross-Domain-Policies"] = "none"
+    response.headers["X-Robots-Tag"] = (
+        "noindex, nofollow, noarchive, nosnippet, noimageindex"
+    )
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["Permissions-Policy"] = (
         "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
@@ -167,6 +171,7 @@ def _add_security_headers(
     response.headers["Content-Security-Policy"] = (
         "default-src 'self'; script-src 'self'; style-src 'self'; "
         "img-src 'self' data:; connect-src 'self'; object-src 'none'; "
+        "frame-src 'none'; worker-src 'none'; manifest-src 'none'; media-src 'none'; "
         "base-uri 'none'; form-action 'self'; frame-ancestors 'none'"
     )
     if no_store:
