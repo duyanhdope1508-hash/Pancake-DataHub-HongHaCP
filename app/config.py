@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     pancake_shop_ids: str = ""
     pancake_connectors_file: Path = Path("secrets/pancake_connectors.json")
     pancake_pages_connectors_file: Path = Path("secrets/pancake_pages_connectors.json")
+    telegram_alerts_file: Path = Path("secrets/telegram_alerts.json")
     pancake_page_size: int = Field(default=100, ge=1, le=100)
     pancake_start_page: int = Field(default=1, ge=1, le=100_000)
     pancake_max_pages: int = Field(default=1, ge=1, le=100_000)

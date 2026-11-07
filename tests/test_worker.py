@@ -79,3 +79,31 @@ def test_audit_cleanup_runs_at_most_once_per_interval(monkeypatch) -> None:
     assert second is None
     assert third == {"detail_events_deleted": 10}
     assert len(calls) == 2
+
+
+def test_sync_cycle_health_detects_partial_failure() -> None:
+    assert worker.sync_cycle_health({"status": "skipped"}) is None
+    assert worker.sync_cycle_health(
+        {"status": "completed", "sync": {"success": False}}
+    ) is False
+    assert worker.sync_cycle_health(
+        {"status": "completed", "sync": {"success": True}}
+    ) is True
+
+
+def test_sync_failure_message_contains_counts_without_secrets() -> None:
+    message = worker.sync_failure_message(
+        {
+            "status": "completed",
+            "sync": {
+                "success": False,
+                "connectors_failed": 2,
+                "shops_processed": 29,
+            },
+        },
+        Settings(_env_file=None, pancake_sync_interval_seconds=43_200),
+    )
+
+    assert "Kết nối lỗi: 2" in message
+    assert "Shop đã xử lý: 29" in message
+    assert "12 giờ" in message

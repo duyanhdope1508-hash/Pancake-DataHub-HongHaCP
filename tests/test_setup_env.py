@@ -12,6 +12,7 @@ def test_build_env_contains_required_settings() -> None:
     assert "@127.0.0.1:15432/pancake_data" in content
     assert "PANCAKE_API_BASE_URL=https://pos.pages.fm/api/v1" in content
     assert "PANCAKE_PAGES_CONNECTORS_FILE=secrets/pancake_pages_connectors.json" in content
+    assert "TELEGRAM_ALERTS_FILE=secrets/telegram_alerts.json" in content
     assert "PANCAKE_MAX_PAGES=1" in content
     assert "PANCAKE_INCREMENTAL_MAX_PAGES=100" in content
     assert "PANCAKE_INCREMENTAL_UNCHANGED_PAGES=2" in content

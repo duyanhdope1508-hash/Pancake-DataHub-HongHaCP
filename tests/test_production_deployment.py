@@ -63,6 +63,19 @@ def test_connector_admin_is_manual_and_has_only_required_secret_write_access() -
     assert "PANCAKE_CONNECTORS_FILE: /app/secrets/pancake_connectors.json" in compose
 
 
+def test_telegram_admin_is_manual_and_writes_only_to_secret_mount() -> None:
+    compose = (ROOT / "compose.production.yaml").read_text(encoding="utf-8")
+    telegram_section, tunnel_section = compose.split("  telegram-admin:", 1)[1].split(
+        "  cloudflared:", 1
+    )
+
+    assert 'profiles: ["tools"]' in telegram_section
+    assert "./secrets:/app/secrets:rw" in telegram_section
+    assert "TELEGRAM_ALERTS_FILE: /app/secrets/telegram_alerts.json" in telegram_section
+    assert 'command: ["python", "-m", "app.setup_telegram_alerts"]' in telegram_section
+    assert tunnel_section
+
+
 def test_restore_requires_explicit_confirmation() -> None:
     restore_script = (ROOT / "scripts/restore-postgres.sh").read_text(encoding="utf-8")
 

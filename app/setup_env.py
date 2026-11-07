@@ -19,6 +19,7 @@ def build_env(api_key: str, database_password: str) -> str:
             "PANCAKE_SHOP_IDS=",
             "PANCAKE_CONNECTORS_FILE=secrets/pancake_connectors.json",
             "PANCAKE_PAGES_CONNECTORS_FILE=secrets/pancake_pages_connectors.json",
+            "TELEGRAM_ALERTS_FILE=secrets/telegram_alerts.json",
             "PANCAKE_PAGE_SIZE=100",
             "PANCAKE_START_PAGE=1",
             "PANCAKE_MAX_PAGES=1",

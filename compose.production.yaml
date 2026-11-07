@@ -5,6 +5,7 @@ x-app-environment: &app-environment
   PANCAKE_SHOP_IDS: ${PANCAKE_SHOP_IDS:-}
   PANCAKE_CONNECTORS_FILE: ${PANCAKE_CONNECTORS_FILE:-secrets/pancake_connectors.json}
   PANCAKE_PAGES_CONNECTORS_FILE: ${PANCAKE_PAGES_CONNECTORS_FILE:-secrets/pancake_pages_connectors.json}
+  TELEGRAM_ALERTS_FILE: ${TELEGRAM_ALERTS_FILE:-secrets/telegram_alerts.json}
   PANCAKE_PAGE_SIZE: ${PANCAKE_PAGE_SIZE:-100}
   PANCAKE_START_PAGE: ${PANCAKE_START_PAGE:-1}
   PANCAKE_MAX_PAGES: ${PANCAKE_MAX_PAGES:-1}
@@ -161,6 +162,30 @@ services:
     networks:
       - proxy
     command: ["python", "-m", "app.add_connectors"]
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    logging: *container-logging
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 64
+
+  telegram-admin:
+    image: pancake-data-hub:${APP_VERSION:-production}
+    profiles: ["tools"]
+    user: "${APP_UID:-1000}:${APP_GID:-1000}"
+    init: true
+    environment:
+      TELEGRAM_ALERTS_FILE: /app/secrets/telegram_alerts.json
+    volumes:
+      - ./secrets:/app/secrets:rw
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+    networks:
+      - proxy
+    command: ["python", "-m", "app.setup_telegram_alerts"]
     security_opt:
       - no-new-privileges:true
     cap_drop:
