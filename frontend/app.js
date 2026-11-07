@@ -1052,6 +1052,8 @@ async function loadFilters() {
 
 async function loadSystemStatus() {
   const data = await fetchJson("/api/system-status");
+  elements.totalOrders.textContent = integerFormatter.format(data.core_orders);
+  elements.totalShops.textContent = integerFormatter.format(data.shops);
   const latest = data.latest_sync;
   if (!latest) {
     elements.systemStateText.textContent = "Chưa có lần đồng bộ";
@@ -1781,8 +1783,16 @@ async function initialize() {
 
 initialize();
 window.setInterval(() => {
-  if (!state.currentUser) return;
+  if (!state.currentUser || document.hidden) return;
   loadSystemStatus().catch(() => {
     elements.systemStateText.textContent = "Không kiểm tra được đồng bộ";
   });
-}, 60_000);
+}, 15_000);
+
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && state.currentUser) {
+    loadSystemStatus().catch(() => {
+      elements.systemStateText.textContent = "Không kiểm tra được đồng bộ";
+    });
+  }
+});

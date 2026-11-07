@@ -107,6 +107,27 @@ def test_frontend_assets_disable_browser_and_proxy_cache() -> None:
     assert main._should_disable_browser_cache("/health") is False
 
 
+def test_system_status_cache_shares_expensive_counts(monkeypatch) -> None:
+    calls: list[tuple[str, ...] | None] = []
+
+    def fake_database_status(shop_ids):
+        calls.append(shop_ids)
+        return {"core_orders": 10}
+
+    monkeypatch.setattr(main, "database_status", fake_database_status)
+    main._cached_database_status.cache_clear()
+    try:
+        first = main._cached_database_status(1, None)
+        second = main._cached_database_status(1, None)
+        scoped = main._cached_database_status(1, ("shop-1",))
+    finally:
+        main._cached_database_status.cache_clear()
+
+    assert first == second == {"core_orders": 10}
+    assert scoped == {"core_orders": 10}
+    assert calls == [None, ("shop-1",)]
+
+
 def test_audit_client_uses_server_observed_ip_and_bounds_user_agent() -> None:
     request = SimpleNamespace(
         client=SimpleNamespace(host="192.0.2.10"),

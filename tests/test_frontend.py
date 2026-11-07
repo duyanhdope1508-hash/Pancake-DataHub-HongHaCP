@@ -12,8 +12,17 @@ def test_frontend_assets_exist() -> None:
 def test_frontend_uses_versioned_assets() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
-    assert 'href="/assets/styles.css?v=27"' in html
-    assert 'src="/assets/app.js?v=27"' in html
+    assert 'href="/assets/styles.css?v=28"' in html
+    assert 'src="/assets/app.js?v=28"' in html
+
+
+def test_overview_counts_refresh_without_reloading_the_page() -> None:
+    javascript = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+    assert "integerFormatter.format(data.core_orders)" in javascript
+    assert "integerFormatter.format(data.shops)" in javascript
+    assert "}, 15_000);" in javascript
+    assert 'document.addEventListener("visibilitychange"' in javascript
 
 
 def test_frontend_requires_login_before_loading_data() -> None:

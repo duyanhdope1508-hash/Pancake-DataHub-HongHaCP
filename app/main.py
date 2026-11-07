@@ -85,6 +85,7 @@ app.add_middleware(
 frontend_dir = Path(__file__).resolve().parents[1] / "frontend"
 app.mount("/assets", StaticFiles(directory=frontend_dir), name="assets")
 ORDER_FILTER_CACHE_SECONDS = 300
+SYSTEM_STATUS_CACHE_SECONDS = 15
 
 
 class LoginRequest(BaseModel):
@@ -293,6 +294,15 @@ def _cached_order_filters(
     del time_bucket
     with SessionLocal() as session:
         return order_filters(session, shop_ids)
+
+
+@lru_cache(maxsize=128)
+def _cached_database_status(
+    time_bucket: int,
+    shop_ids: tuple[str, ...] | None,
+) -> dict:
+    del time_bucket
+    return database_status(shop_ids)
 
 
 def _should_disable_browser_cache(path: str) -> bool:
@@ -715,7 +725,8 @@ def admin_update_staff(
 def system_status(request: Request) -> dict:
     with SessionLocal() as session:
         shop_ids = authorized_shop_ids(session, request.state.current_user)
-    return database_status(shop_ids)
+    time_bucket = int(monotonic() // SYSTEM_STATUS_CACHE_SECONDS)
+    return _cached_database_status(time_bucket, shop_ids)
 
 
 async def _run_manual_sync(request: Request, actor_user_id: str) -> None:
@@ -742,6 +753,7 @@ async def _run_manual_sync(request: Request, actor_user_id: str) -> None:
         sync_result = result["sync"]
         transform_result = result["transform"]
         _cached_order_filters.cache_clear()
+        _cached_database_status.cache_clear()
         _manual_sync_state = {
             "status": "completed",
             "success": sync_result["success"],
