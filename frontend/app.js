@@ -1057,11 +1057,30 @@ async function loadSystemStatus() {
     elements.systemStateText.textContent = "Chưa có lần đồng bộ";
     return;
   }
+  if (latest.status === "running") {
+    elements.systemStateText.textContent = "Đang đồng bộ…";
+    return;
+  }
   if (latest.status !== "success") {
     elements.systemStateText.textContent = "Cần kiểm tra đồng bộ";
     return;
   }
   elements.systemStateText.textContent = `Đồng bộ ${formatDate(latest.finished_at)}`;
+}
+
+async function waitForManualSync() {
+  const deadline = Date.now() + 30 * 60 * 1000;
+  while (Date.now() < deadline) {
+    await new Promise((resolve) => window.setTimeout(resolve, 5000));
+    const status = await fetchJson("/api/sync/status");
+    if (status.status !== "running") {
+      return status;
+    }
+  }
+  return {
+    status: "failed",
+    detail: "Đồng bộ vẫn đang chạy lâu hơn dự kiến. Hãy kiểm tra lại sau.",
+  };
 }
 
 async function syncNow() {
@@ -1078,14 +1097,27 @@ async function syncNow() {
     if (!response.ok) {
       throw new Error(payload.detail || `Yêu cầu thất bại (${response.status})`);
     }
+    if (payload.status !== "started") {
+      throw new Error("Server không xác nhận tác vụ đồng bộ.");
+    }
+    elements.syncNow.textContent = "Đang đồng bộ nền…";
+    const result = await waitForManualSync();
+    if (result.status === "skipped") {
+      elements.systemStateText.textContent = "Đang có lượt đồng bộ khác";
+      elements.syncNow.textContent = "Đồng bộ đang chạy";
+      return;
+    }
+    if (result.status !== "completed") {
+      throw new Error(result.detail || "Đồng bộ nền gặp lỗi.");
+    }
     await Promise.all([loadSystemStatus(), loadOrders()]);
-    const shopCount = integerFormatter.format(payload.shops_processed);
-    const orderCount = integerFormatter.format(payload.orders_transformed);
-    if (payload.success) {
+    const shopCount = integerFormatter.format(result.shops_processed);
+    const orderCount = integerFormatter.format(result.orders_transformed);
+    if (result.success) {
       elements.syncNow.textContent = `Xong · ${shopCount} shop, ${orderCount} đơn cập nhật`;
     } else {
       showError(
-        `Đã đồng bộ nhưng có ${integerFormatter.format(payload.connectors_failed)} kết nối lỗi.`,
+        `Đã đồng bộ nhưng có ${integerFormatter.format(result.connectors_failed)} kết nối lỗi.`,
       );
       elements.syncNow.textContent = "Hoàn tất, có lỗi";
     }

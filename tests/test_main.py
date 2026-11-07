@@ -1,3 +1,4 @@
+import asyncio
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -136,7 +137,7 @@ def test_staff_read_quota_counts_requested_order_rows() -> None:
 
 
 @pytest.mark.asyncio
-async def test_manual_sync_returns_safe_summary(monkeypatch) -> None:
+async def test_manual_sync_starts_background_job_and_returns_immediately(monkeypatch) -> None:
     async def fake_run_cycle(_settings) -> dict:
         return {
             "status": "completed",
@@ -151,10 +152,17 @@ async def test_manual_sync_returns_safe_summary(monkeypatch) -> None:
         }
 
     monkeypatch.setattr(main, "run_cycle", fake_run_cycle)
+    monkeypatch.setattr(main, "_manual_sync_task", None)
+    monkeypatch.setattr(main, "_manual_sync_state", {"status": "idle"})
 
     result = await main.sync_now(_request_for("admin"))
 
-    assert result == {
+    assert result["status"] == "started"
+    assert "started_at" in result
+    assert main._manual_sync_task is not None
+    await main._manual_sync_task
+
+    assert main.manual_sync_status(_request_for("admin")) == {
         "status": "completed",
         "success": True,
         "shops_processed": 26,
@@ -162,20 +170,28 @@ async def test_manual_sync_returns_safe_summary(monkeypatch) -> None:
         "rows_seen": 100,
         "rows_written": 100,
         "orders_transformed": 4,
+        "finished_at": main._manual_sync_state["finished_at"],
     }
 
 
 @pytest.mark.asyncio
 async def test_manual_sync_rejects_overlapping_cycle(monkeypatch) -> None:
-    async def fake_run_cycle(_settings) -> dict:
-        return {"status": "skipped", "reason": "already_running"}
+    blocker = asyncio.Event()
 
-    monkeypatch.setattr(main, "run_cycle", fake_run_cycle)
+    async def running_job() -> None:
+        await blocker.wait()
 
-    with pytest.raises(HTTPException) as exc_info:
-        await main.sync_now(_request_for("admin"))
+    active_task = asyncio.create_task(running_job())
+    monkeypatch.setattr(main, "_manual_sync_task", active_task)
 
-    assert exc_info.value.status_code == 409
+    try:
+        with pytest.raises(HTTPException) as exc_info:
+            await main.sync_now(_request_for("admin"))
+
+        assert exc_info.value.status_code == 409
+    finally:
+        blocker.set()
+        await active_task
 
 
 @pytest.mark.asyncio
@@ -188,3 +204,10 @@ async def test_manual_sync_is_admin_only(monkeypatch) -> None:
 
     assert exc_info.value.status_code == 403
     mocked_run_cycle.assert_not_called()
+
+
+def test_manual_sync_status_is_admin_only() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        main.manual_sync_status(_request_for("staff"))
+
+    assert exc_info.value.status_code == 403

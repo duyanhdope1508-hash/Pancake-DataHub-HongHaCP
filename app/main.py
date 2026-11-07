@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import secrets
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
@@ -56,6 +58,10 @@ from app.user_management import (
     update_staff,
 )
 from app.worker import run_cycle
+
+logger = logging.getLogger(__name__)
+_manual_sync_task: asyncio.Task[None] | None = None
+_manual_sync_state: dict = {"status": "idle"}
 
 
 @asynccontextmanager
@@ -708,50 +714,99 @@ def system_status(request: Request) -> dict:
     return database_status(shop_ids)
 
 
-@app.post("/api/sync")
-async def sync_now(request: Request) -> dict:
-    actor = request.state.current_user
-    require_admin(actor)
-    result = await run_cycle(get_settings())
-    if result["status"] == "skipped":
+async def _run_manual_sync(request: Request, actor_user_id: str) -> None:
+    global _manual_sync_state
+    try:
+        result = await run_cycle(get_settings())
+        finished_at = datetime.now(UTC).isoformat()
+        if result["status"] == "skipped":
+            _manual_sync_state = {
+                "status": "skipped",
+                "reason": result.get("reason", "unknown"),
+                "finished_at": finished_at,
+            }
+            _record_audit(
+                request=request,
+                actor_user_id=actor_user_id,
+                action="orders.sync",
+                resource_type="sync",
+                result="skipped",
+                metadata={"reason": result.get("reason", "unknown")},
+            )
+            return
+
+        sync_result = result["sync"]
+        transform_result = result["transform"]
+        _cached_order_filters.cache_clear()
+        _manual_sync_state = {
+            "status": "completed",
+            "success": sync_result["success"],
+            "shops_processed": sync_result["shops_processed"],
+            "connectors_failed": sync_result["connectors_failed"],
+            "rows_seen": sync_result["rows_seen"],
+            "rows_written": sync_result["rows_written"],
+            "orders_transformed": transform_result["orders_transformed"],
+            "finished_at": finished_at,
+        }
         _record_audit(
             request=request,
-            actor_user_id=actor.id,
+            actor_user_id=actor_user_id,
             action="orders.sync",
             resource_type="sync",
-            result="skipped",
-            metadata={"reason": result.get("reason", "unknown")},
+            result="success" if sync_result["success"] else "partial",
+            metadata={
+                "shops_processed": sync_result["shops_processed"],
+                "connectors_failed": sync_result["connectors_failed"],
+                "rows_written": sync_result["rows_written"],
+                "orders_transformed": transform_result["orders_transformed"],
+            },
         )
-        raise HTTPException(
-            status_code=409,
-            detail="Đang có một lượt đồng bộ khác chạy. Hãy chờ lượt đó hoàn tất.",
+    except Exception as exc:
+        logger.exception("Manual sync failed")
+        _manual_sync_state = {
+            "status": "failed",
+            "detail": "Đồng bộ nền gặp lỗi. Hãy kiểm tra nhật ký hệ thống.",
+            "finished_at": datetime.now(UTC).isoformat(),
+        }
+        _record_audit(
+            request=request,
+            actor_user_id=actor_user_id,
+            action="orders.sync",
+            resource_type="sync",
+            result="failed",
+            metadata={"error_type": type(exc).__name__},
         )
 
-    sync_result = result["sync"]
-    transform_result = result["transform"]
-    _cached_order_filters.cache_clear()
+
+@app.post("/api/sync", status_code=202)
+async def sync_now(request: Request) -> dict:
+    global _manual_sync_state, _manual_sync_task
+    actor = request.state.current_user
+    require_admin(actor)
+    if _manual_sync_task is not None and not _manual_sync_task.done():
+        raise HTTPException(
+            status_code=409,
+            detail="Đang có một lượt đồng bộ thủ công chạy. Hãy chờ lượt đó hoàn tất.",
+        )
+
+    started_at = datetime.now(UTC).isoformat()
+    _manual_sync_state = {"status": "running", "started_at": started_at}
     _record_audit(
         request=request,
         actor_user_id=actor.id,
         action="orders.sync",
         resource_type="sync",
-        result="success" if sync_result["success"] else "partial",
-        metadata={
-            "shops_processed": sync_result["shops_processed"],
-            "connectors_failed": sync_result["connectors_failed"],
-            "rows_written": sync_result["rows_written"],
-            "orders_transformed": transform_result["orders_transformed"],
-        },
+        result="started",
+        metadata={},
     )
-    return {
-        "status": "completed" if sync_result["success"] else "completed_with_errors",
-        "success": sync_result["success"],
-        "shops_processed": sync_result["shops_processed"],
-        "connectors_failed": sync_result["connectors_failed"],
-        "rows_seen": sync_result["rows_seen"],
-        "rows_written": sync_result["rows_written"],
-        "orders_transformed": transform_result["orders_transformed"],
-    }
+    _manual_sync_task = asyncio.create_task(_run_manual_sync(request, actor.id))
+    return {"status": "started", "started_at": started_at}
+
+
+@app.get("/api/sync/status")
+def manual_sync_status(request: Request) -> dict:
+    require_admin(request.state.current_user)
+    return dict(_manual_sync_state)
 
 
 @app.get("/api/orders")

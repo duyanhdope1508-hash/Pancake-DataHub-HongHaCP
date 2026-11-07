@@ -107,6 +107,8 @@ def test_mutating_requests_send_session_bound_csrf_header() -> None:
     assert 'secureFetch("/api/auth/logout"' in javascript
     assert 'secureFetch("/api/auth/change-password"' in javascript
     assert 'secureFetch("/api/sync"' in javascript
+    assert 'fetchJson("/api/sync/status")' in javascript
+    assert 'payload.status !== "started"' in javascript
 
 
 def test_frontend_uses_safe_dom_rendering() -> None:
