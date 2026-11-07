@@ -26,7 +26,7 @@ def build_env(api_key: str, database_password: str) -> str:
             "PANCAKE_INCREMENTAL_UNCHANGED_PAGES=2",
             "PANCAKE_SYNC_CONCURRENCY=4",
             "PANCAKE_RESUME_BACKFILL=false",
-            "PANCAKE_SYNC_INTERVAL_SECONDS=300",
+            "PANCAKE_SYNC_INTERVAL_SECONDS=43200",
             "",
         ]
     )

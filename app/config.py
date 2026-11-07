@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     pancake_incremental_unchanged_pages: int = Field(default=2, ge=1, le=10)
     pancake_sync_concurrency: int = Field(default=4, ge=1, le=16)
     pancake_resume_backfill: bool = False
-    pancake_sync_interval_seconds: int = Field(default=300, ge=30, le=86_400)
+    pancake_sync_interval_seconds: int = Field(default=43_200, ge=30, le=86_400)
     auth_session_hours: int = Field(default=12, ge=1, le=168)
     auth_cookie_secure: bool = False
     trusted_hosts: str = "*"

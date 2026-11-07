@@ -15,6 +15,7 @@ def test_build_env_contains_required_settings() -> None:
     assert "PANCAKE_MAX_PAGES=1" in content
     assert "PANCAKE_INCREMENTAL_MAX_PAGES=100" in content
     assert "PANCAKE_INCREMENTAL_UNCHANGED_PAGES=2" in content
+    assert "PANCAKE_SYNC_INTERVAL_SECONDS=43200" in content
     assert "PANCAKE_SYNC_CONCURRENCY=4" in content
     assert "PANCAKE_RESUME_BACKFILL=false" in content
 

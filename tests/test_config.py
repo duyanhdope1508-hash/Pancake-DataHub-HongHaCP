@@ -12,7 +12,7 @@ def test_sync_defaults_to_one_page() -> None:
     assert settings.pancake_incremental_unchanged_pages == 2
     assert settings.pancake_sync_concurrency == 4
     assert settings.pancake_resume_backfill is False
-    assert settings.pancake_sync_interval_seconds == 300
+    assert settings.pancake_sync_interval_seconds == 43_200
     assert settings.auth_session_hours == 12
     assert settings.auth_cookie_secure is False
     assert settings.trusted_hosts == "*"
