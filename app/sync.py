@@ -2,7 +2,7 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.dialects.postgresql import insert
 
 from app.config import Settings
@@ -86,6 +86,45 @@ def _resume_page(settings: Settings, latest_run: SyncRun | None) -> int | None:
     )
 
 
+def _is_incremental_sync(settings: Settings) -> bool:
+    return not settings.pancake_resume_backfill and settings.pancake_max_pages == 1
+
+
+def _scan_page_limit(settings: Settings, start_page: int) -> int:
+    if not _is_incremental_sync(settings):
+        return settings.pancake_max_pages
+    return start_page + settings.pancake_incremental_max_pages - 1
+
+
+def _raw_order_upsert(
+    *,
+    shop_id: str,
+    order_id: str,
+    order: dict[str, Any],
+    source_updated_at: str | None,
+):
+    statement = insert(RawOrder).values(
+        shop_id=shop_id,
+        source_order_id=order_id,
+        payload=order,
+        source_updated_at=source_updated_at,
+    )
+    return statement.on_conflict_do_update(
+        index_elements=[RawOrder.shop_id, RawOrder.source_order_id],
+        set_={
+            "payload": statement.excluded.payload,
+            "source_updated_at": statement.excluded.source_updated_at,
+            "ingested_at": datetime.now(UTC),
+        },
+        where=or_(
+            RawOrder.payload.is_distinct_from(statement.excluded.payload),
+            RawOrder.source_updated_at.is_distinct_from(
+                statement.excluded.source_updated_at
+            ),
+        ),
+    )
+
+
 async def _sync_connector(
     settings: Settings, connector: PancakeConnector
 ) -> dict[str, Any]:
@@ -152,6 +191,10 @@ async def _sync_connector(
                     if page_number > settings.pancake_start_page:
                         result["shops_resumed"] += 1
 
+                    scan_page_limit = _scan_page_limit(settings, page_number)
+                    incremental_sync = _is_incremental_sync(settings)
+                    unchanged_pages = 0
+
                     run = SyncRun(
                         connector_name=connector.name,
                         shop_id=shop_id,
@@ -162,7 +205,7 @@ async def _sync_connector(
                     session.commit()
 
                     try:
-                        while page_number <= settings.pancake_max_pages:
+                        while page_number <= scan_page_limit:
                             orders = await client.list_orders(
                                 shop_id,
                                 page_number=page_number,
@@ -185,41 +228,36 @@ async def _sync_connector(
                                 source_updated_at = order.get("updated_at") or order.get(
                                     "update_time"
                                 )
-                                session.execute(
-                                    insert(RawOrder)
-                                    .values(
+                                write_result = session.execute(
+                                    _raw_order_upsert(
                                         shop_id=shop_id,
-                                        source_order_id=order_id,
-                                        payload=order,
+                                        order_id=order_id,
+                                        order=order,
                                         source_updated_at=(
                                             str(source_updated_at)
                                             if source_updated_at
                                             else None
                                         ),
                                     )
-                                    .on_conflict_do_update(
-                                        index_elements=[
-                                            RawOrder.shop_id,
-                                            RawOrder.source_order_id,
-                                        ],
-                                        set_={
-                                            "payload": order,
-                                            "source_updated_at": (
-                                                str(source_updated_at)
-                                                if source_updated_at
-                                                else None
-                                            ),
-                                            "ingested_at": datetime.now(UTC),
-                                        },
-                                    )
                                 )
-                                page_written += 1
+                                page_written += int(write_result.rowcount or 0)
 
                             run.rows_written += page_written
                             result["rows_written"] += page_written
                             session.commit()
 
+                            if page_written == 0:
+                                unchanged_pages += 1
+                            else:
+                                unchanged_pages = 0
+
                             if len(orders) < settings.pancake_page_size:
+                                break
+                            if (
+                                incremental_sync
+                                and unchanged_pages
+                                >= settings.pancake_incremental_unchanged_pages
+                            ):
                                 break
                             page_number += 1
 
@@ -284,6 +322,7 @@ async def sync_all(settings: Settings) -> dict[str, Any]:
         "rows_written": sum(result["rows_written"] for result in connector_results),
         "start_page": settings.pancake_start_page,
         "page_limit": settings.pancake_max_pages,
+        "incremental_page_limit": settings.pancake_incremental_max_pages,
         "concurrency": settings.pancake_sync_concurrency,
         "errors": errors,
     }

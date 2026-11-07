@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     pancake_page_size: int = Field(default=100, ge=1, le=100)
     pancake_start_page: int = Field(default=1, ge=1, le=100_000)
     pancake_max_pages: int = Field(default=1, ge=1, le=100_000)
+    pancake_incremental_max_pages: int = Field(default=100, ge=1, le=1_000)
+    pancake_incremental_unchanged_pages: int = Field(default=2, ge=1, le=10)
     pancake_sync_concurrency: int = Field(default=4, ge=1, le=16)
     pancake_resume_backfill: bool = False
     pancake_sync_interval_seconds: int = Field(default=300, ge=30, le=86_400)
