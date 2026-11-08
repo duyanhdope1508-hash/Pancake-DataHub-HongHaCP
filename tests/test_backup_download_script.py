@@ -8,6 +8,8 @@ def test_windows_backup_downloader_is_safe_and_verifies_checksum() -> None:
 
     assert 'BatchMode=yes' in script
     assert 'ConnectTimeout=15' in script
+    assert '$Destination = ""' in script
+    assert "$MyInvocation.MyCommand.Path" in script
     assert "Get-FileHash" in script
     assert "SHA256" in script
     assert ".partial" in script

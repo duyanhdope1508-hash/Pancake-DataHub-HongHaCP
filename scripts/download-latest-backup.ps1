@@ -2,7 +2,7 @@
 param(
     [string]$Server = "deploy@129.212.233.231",
     [string]$RemoteBackupDir = "/opt/pancake-data-hub/backups",
-    [string]$Destination = (Join-Path $PSScriptRoot "..\backups\windows-copy"),
+    [string]$Destination = "",
     [string]$IdentityFile = "",
     [ValidateRange(1, 52)]
     [int]$Keep = 4
@@ -10,6 +10,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-StrictMode -Version Latest
+
+$scriptDirectory = Split-Path -Parent $MyInvocation.MyCommand.Path
+if (-not $Destination) {
+    $Destination = Join-Path $scriptDirectory "..\backups\windows-copy"
+}
 
 if ($Server -notmatch '^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$') {
     throw "Server must have the form user@hostname or user@IPv4."
