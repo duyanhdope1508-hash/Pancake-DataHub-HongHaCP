@@ -6,6 +6,10 @@ from app.config import Settings
 
 def test_sync_defaults_to_one_page() -> None:
     settings = Settings(_env_file=None)
+    assert settings.database_pool_size == 5
+    assert settings.database_max_overflow == 2
+    assert settings.database_pool_timeout_seconds == 15
+    assert settings.database_pool_recycle_seconds == 1_800
     assert settings.pancake_start_page == 1
     assert settings.pancake_max_pages == 1
     assert settings.pancake_incremental_max_pages == 100
@@ -35,6 +39,11 @@ def test_sync_defaults_to_one_page() -> None:
 def test_sync_page_limit_must_be_positive() -> None:
     with pytest.raises(ValidationError):
         Settings(_env_file=None, pancake_max_pages=0)
+
+
+def test_database_pool_size_must_be_positive() -> None:
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, database_pool_size=0)
 
 
 def test_incremental_page_limit_must_be_positive() -> None:

@@ -11,6 +11,10 @@ class Settings(BaseSettings):
     database_url: str = Field(
         default="postgresql+psycopg://pancake_app:change_this_password@localhost:5432/pancake_data"
     )
+    database_pool_size: int = Field(default=5, ge=1, le=50)
+    database_max_overflow: int = Field(default=2, ge=0, le=50)
+    database_pool_timeout_seconds: int = Field(default=15, ge=1, le=120)
+    database_pool_recycle_seconds: int = Field(default=1_800, ge=60, le=86_400)
     pancake_api_base_url: str = "https://pos.pages.fm/api/v1"
     pancake_api_key: str = ""
     pancake_shop_ids: str = ""

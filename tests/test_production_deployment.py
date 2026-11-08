@@ -45,6 +45,17 @@ def test_production_compose_uses_outbound_only_cloudflare_tunnel() -> None:
     assert "/run/secrets/cloudflare_tunnel_token" in tunnel_section
 
 
+def test_production_database_connections_are_bounded() -> None:
+    compose = (ROOT / "compose.production.yaml").read_text(encoding="utf-8")
+
+    assert "DATABASE_POOL_SIZE: ${DATABASE_POOL_SIZE:-6}" in compose
+    assert "DATABASE_MAX_OVERFLOW: ${DATABASE_MAX_OVERFLOW:-2}" in compose
+    assert "DATABASE_POOL_TIMEOUT_SECONDS: ${DATABASE_POOL_TIMEOUT_SECONDS:-15}" in compose
+    assert "DATABASE_POOL_RECYCLE_SECONDS: ${DATABASE_POOL_RECYCLE_SECONDS:-1800}" in compose
+    assert "DATABASE_POOL_SIZE: ${WORKER_DATABASE_POOL_SIZE:-3}" in compose
+    assert "DATABASE_MAX_OVERFLOW: ${WORKER_DATABASE_MAX_OVERFLOW:-1}" in compose
+
+
 def test_production_secrets_are_not_sent_to_docker_or_git() -> None:
     dockerignore = (ROOT / ".dockerignore").read_text(encoding="utf-8")
     gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8")

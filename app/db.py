@@ -9,7 +9,20 @@ class Base(DeclarativeBase):
 
 
 settings = get_settings()
-engine = create_engine(settings.database_url, pool_pre_ping=True)
+
+
+def database_engine_options() -> dict[str, bool | int]:
+    return {
+        "pool_pre_ping": True,
+        "pool_size": settings.database_pool_size,
+        "max_overflow": settings.database_max_overflow,
+        "pool_timeout": settings.database_pool_timeout_seconds,
+        "pool_recycle": settings.database_pool_recycle_seconds,
+        "pool_use_lifo": True,
+    }
+
+
+engine = create_engine(settings.database_url, **database_engine_options())
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 
 
