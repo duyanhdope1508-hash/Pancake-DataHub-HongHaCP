@@ -46,14 +46,14 @@ latest=`$(find '$RemoteBackupDir' -maxdepth 1 -type f -name 'pancake-data-hub-??
 printf '%s\n' "`$latest"
 "@
 
-Write-Host "Đang xác định backup mới nhất trên VPS..." -ForegroundColor Cyan
+Write-Host "Finding the latest backup on the VPS..." -ForegroundColor Cyan
 $latestOutput = & ssh.exe @connectionOptions $Server $remoteCommand
 if ($LASTEXITCODE -ne 0) {
-    throw "Không tìm thấy backup hoàn chỉnh trên VPS hoặc không thể kết nối SSH."
+    throw "Could not connect through SSH or find a complete backup on the VPS."
 }
 $latestName = ($latestOutput | Select-Object -Last 1).Trim()
 if ($latestName -notmatch '^pancake-data-hub-[0-9]{8}T[0-9]{6}Z\.dump$') {
-    throw "VPS trả về tên backup không hợp lệ."
+    throw "The VPS returned an invalid backup filename."
 }
 
 $destinationPath = [System.IO.Path]::GetFullPath($Destination)
@@ -64,41 +64,41 @@ $partialBackup = "$localBackup.partial"
 $partialChecksum = "$localChecksum.partial"
 
 try {
-    Write-Host "Đang tải checksum..." -ForegroundColor Cyan
+    Write-Host "Downloading the checksum..." -ForegroundColor Cyan
     & scp.exe @connectionOptions "${Server}:${RemoteBackupDir}/${latestName}.sha256" $partialChecksum
     if ($LASTEXITCODE -ne 0) {
-        throw "Không thể tải checksum từ VPS."
+        throw "Could not download the checksum from the VPS."
     }
 
     $expectedHash = ((Get-Content -LiteralPath $partialChecksum -Raw).Trim() -split '\s+')[0]
     if ($expectedHash -notmatch '^[A-Fa-f0-9]{64}$') {
-        throw "Checksum trên VPS không hợp lệ."
+        throw "The checksum stored on the VPS is invalid."
     }
 
     if (Test-Path -LiteralPath $localBackup) {
         $existingHash = (Get-FileHash -LiteralPath $localBackup -Algorithm SHA256).Hash
         if ($existingHash -ieq $expectedHash) {
             Move-Item -Force -LiteralPath $partialChecksum -Destination $localChecksum
-            Write-Host "Backup mới nhất đã có sẵn và checksum chính xác: $localBackup" -ForegroundColor Green
+            Write-Host "The latest backup is already present and verified: $localBackup" -ForegroundColor Green
         } else {
-            throw "Đã có file cùng tên nhưng checksum không đúng. Không ghi đè để tránh mất bằng chứng kiểm tra."
+            throw "A file with the same name has a different checksum. It will not be overwritten."
         }
     } else {
-        Write-Host "Đang tải $latestName. Quá trình có thể mất vài phút..." -ForegroundColor Cyan
+        Write-Host "Downloading $latestName. This can take several minutes..." -ForegroundColor Cyan
         & scp.exe @connectionOptions "${Server}:${RemoteBackupDir}/${latestName}" $partialBackup
         if ($LASTEXITCODE -ne 0) {
-            throw "Không thể tải backup từ VPS."
+            throw "Could not download the backup from the VPS."
         }
 
-        Write-Host "Đang xác minh SHA-256..." -ForegroundColor Cyan
+        Write-Host "Verifying SHA-256..." -ForegroundColor Cyan
         $actualHash = (Get-FileHash -LiteralPath $partialBackup -Algorithm SHA256).Hash
         if ($actualHash -ine $expectedHash) {
-            throw "Checksum không khớp. File tải về không được công nhận là backup hợp lệ."
+            throw "Checksum mismatch. The downloaded file is not a valid backup."
         }
 
         Move-Item -LiteralPath $partialBackup -Destination $localBackup
         Move-Item -Force -LiteralPath $partialChecksum -Destination $localChecksum
-        Write-Host "Đã tải và xác minh thành công: $localBackup" -ForegroundColor Green
+        Write-Host "Backup downloaded and verified successfully: $localBackup" -ForegroundColor Green
     }
 }
 finally {
@@ -116,5 +116,5 @@ foreach ($obsolete in ($verifiedBackups | Select-Object -Skip $Keep)) {
 
 $keptCount = @(Get-ChildItem -LiteralPath $destinationPath -File |
     Where-Object { $_.Name -match '^pancake-data-hub-[0-9]{8}T[0-9]{6}Z\.dump$' }).Count
-Write-Host "Hoàn tất. Máy đang giữ $keptCount/$Keep bản backup trong: $destinationPath" -ForegroundColor Green
-Write-Host "Lưu ý: nên đặt thư mục này trên ổ đĩa có BitLocker." -ForegroundColor Yellow
+Write-Host "Completed. This computer keeps $keptCount/$Keep backups in: $destinationPath" -ForegroundColor Green
+Write-Host "Security note: store this folder on a BitLocker-protected drive." -ForegroundColor Yellow

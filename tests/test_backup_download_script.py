@@ -13,10 +13,11 @@ def test_windows_backup_downloader_is_safe_and_verifies_checksum() -> None:
     assert "Get-FileHash" in script
     assert "SHA256" in script
     assert ".partial" in script
-    assert "checksum không đúng" in script
+    assert "different checksum" in script
     assert "Select-Object -Skip $Keep" in script
     assert "BitLocker" in script
     assert "password" not in script.lower()
+    assert all(ord(character) < 128 for character in script)
 
 
 def test_cmd_wrapper_bypasses_local_script_policy_only_for_this_run() -> None:
@@ -24,3 +25,4 @@ def test_cmd_wrapper_bypasses_local_script_policy_only_for_this_run() -> None:
 
     assert "-ExecutionPolicy Bypass" in wrapper
     assert "download-latest-backup.ps1" in wrapper
+    assert "chcp 65001" in wrapper
