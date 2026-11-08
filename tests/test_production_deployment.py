@@ -10,6 +10,8 @@ def test_production_deployment_files_exist() -> None:
         "compose.production.yaml",
         "scripts/backup-postgres.sh",
         "scripts/install-backup-timer.sh",
+        "scripts/monitor-operations.sh",
+        "scripts/install-operations-monitor.sh",
         "scripts/restore-postgres.sh",
         "scripts/deploy-production.sh",
     ):
@@ -112,4 +114,29 @@ def test_backup_is_space_guarded_locked_and_count_retained() -> None:
     assert "pg_restore --list" in backup_script
     assert "sha256sum" in backup_script
     assert "NR > keep" in backup_script
+
+
+def test_operations_monitor_checks_services_capacity_and_freshness() -> None:
+    monitor = (ROOT / "scripts/monitor-operations.sh").read_text(encoding="utf-8")
+    installer = (ROOT / "scripts/install-operations-monitor.sh").read_text(
+        encoding="utf-8"
+    )
+
+    for issue in (
+        "database_unhealthy",
+        "api_unhealthy",
+        "worker_stopped",
+        "tunnel_stopped",
+        "sync_stale",
+        "backup_stale",
+        "disk_warning",
+        "disk_critical",
+    ):
+        assert issue in monitor
+    assert "flock -n 9" in monitor
+    assert ".ops-monitor-state" in monitor
+    assert "app.notify_ops" in monitor
+    assert "OnUnitInactiveSec=5m" in installer
+    assert "Persistent=true" in installer
+    assert "ExecStart=$PROJECT_DIR/scripts/monitor-operations.sh" in installer
 
