@@ -3,14 +3,16 @@ import json
 import logging
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime
 from time import monotonic
 from typing import Any
 
-from sqlalchemy import text
+from sqlalchemy import text, update
 
 from app.audit import cleanup_audit_history
 from app.config import Settings, get_settings
 from app.db import SessionLocal, engine, init_db
+from app.models import SyncRun
 from app.sync import sync_all
 from app.telegram_alerts import send_telegram_alert
 from app.transform import transform_raw_orders
@@ -18,6 +20,24 @@ from app.transform import transform_raw_orders
 logger = logging.getLogger(__name__)
 SYNC_ADVISORY_LOCK_ID = 1_735_531_090
 _last_audit_cleanup_at: float | None = None
+
+
+def cancel_interrupted_sync_runs() -> int:
+    with SessionLocal() as session:
+        result = session.execute(
+            update(SyncRun)
+            .where(
+                SyncRun.status == "running",
+                SyncRun.finished_at.is_(None),
+            )
+            .values(
+                status="cancelled",
+                error="Previous worker stopped before the sync cycle completed",
+                finished_at=datetime.now(UTC),
+            )
+        )
+        session.commit()
+        return max(int(result.rowcount or 0), 0)
 
 
 def run_audit_cleanup(settings: Settings) -> dict[str, int]:
@@ -74,6 +94,9 @@ async def run_cycle(settings: Settings) -> dict[str, Any]:
     with sync_cycle_lock() as acquired:
         if not acquired:
             return {"status": "skipped", "reason": "already_running"}
+        interrupted_runs = cancel_interrupted_sync_runs()
+        if interrupted_runs:
+            logger.warning("Cancelled %s interrupted sync runs", interrupted_runs)
         logger.info("Sync phase started")
         sync_result = await sync_all(settings)
         logger.info(

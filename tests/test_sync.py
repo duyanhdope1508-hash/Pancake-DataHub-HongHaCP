@@ -85,3 +85,4 @@ def test_raw_order_upsert_only_updates_changed_payloads() -> None:
     compiled = str(statement.compile(dialect=postgresql.dialect()))
 
     assert "IS DISTINCT FROM" in compiled
+    assert "RETURNING raw_pancake_orders.source_order_id" in compiled

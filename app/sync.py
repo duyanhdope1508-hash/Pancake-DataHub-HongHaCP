@@ -122,7 +122,7 @@ def _raw_order_upsert(
                 statement.excluded.source_updated_at
             ),
         ),
-    )
+    ).returning(RawOrder.source_order_id)
 
 
 async def _sync_connector(
@@ -240,7 +240,8 @@ async def _sync_connector(
                                         ),
                                     )
                                 )
-                                page_written += int(write_result.rowcount or 0)
+                                if write_result.scalar_one_or_none() is not None:
+                                    page_written += 1
 
                             run.rows_written += page_written
                             result["rows_written"] += page_written

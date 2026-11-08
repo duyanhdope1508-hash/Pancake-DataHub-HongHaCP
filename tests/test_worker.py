@@ -1,5 +1,6 @@
 import logging
 from contextlib import contextmanager
+from unittest.mock import MagicMock
 
 from app import worker
 from app.config import Settings
@@ -16,6 +17,10 @@ async def test_run_cycle_syncs_before_transform(monkeypatch, caplog) -> None:
         events.append("transform")
         return {"orders_transformed": 3}
 
+    def fake_cancel_interrupted() -> int:
+        events.append("cleanup")
+        return 2
+
     @contextmanager
     def fake_lock():
         yield True
@@ -23,17 +28,19 @@ async def test_run_cycle_syncs_before_transform(monkeypatch, caplog) -> None:
     monkeypatch.setattr(worker, "sync_all", fake_sync)
     monkeypatch.setattr(worker, "transform_raw_orders", fake_transform)
     monkeypatch.setattr(worker, "sync_cycle_lock", fake_lock)
+    monkeypatch.setattr(worker, "cancel_interrupted_sync_runs", fake_cancel_interrupted)
 
     with caplog.at_level(logging.INFO, logger=worker.__name__):
         result = await worker.run_cycle(Settings(_env_file=None))
 
-    assert events == ["sync", "transform"]
+    assert events == ["cleanup", "sync", "transform"]
     assert result == {
         "status": "completed",
         "sync": {"success": True},
         "transform": {"orders_transformed": 3},
     }
     assert "Sync phase started" in caplog.text
+    assert "Cancelled 2 interrupted sync runs" in caplog.text
     assert "Sync phase completed" in caplog.text
     assert "Transform phase started" in caplog.text
     assert "Transform phase completed" in caplog.text
@@ -53,6 +60,17 @@ async def test_run_cycle_skips_when_another_cycle_has_lock(monkeypatch) -> None:
     result = await worker.run_cycle(Settings(_env_file=None))
 
     assert result == {"status": "skipped", "reason": "already_running"}
+
+
+def test_interrupted_sync_runs_are_cancelled_before_new_cycle(monkeypatch) -> None:
+    context = MagicMock()
+    context.__enter__.return_value.execute.return_value.rowcount = 4
+    monkeypatch.setattr(worker, "SessionLocal", lambda: context)
+
+    cancelled = worker.cancel_interrupted_sync_runs()
+
+    assert cancelled == 4
+    context.__enter__.return_value.commit.assert_called_once_with()
 
 
 def test_http_request_logging_is_disabled_to_protect_api_keys() -> None:
