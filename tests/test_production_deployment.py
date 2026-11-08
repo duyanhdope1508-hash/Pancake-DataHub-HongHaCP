@@ -156,7 +156,7 @@ def test_operations_monitor_checks_services_capacity_and_freshness() -> None:
 def test_storage_audit_is_read_only_and_bounded() -> None:
     audit = (ROOT / "scripts/analyze-storage.sh").read_text(encoding="utf-8")
 
-    assert "BEGIN TRANSACTION READ ONLY" in audit
+    assert "BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY" in audit
     assert "statement_timeout = '180s'" in audit
     assert "lock_timeout = '3s'" in audit
     assert "pg_total_relation_size" in audit

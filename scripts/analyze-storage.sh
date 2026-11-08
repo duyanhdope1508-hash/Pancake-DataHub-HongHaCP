@@ -32,7 +32,7 @@ compose exec -T db sh -c \
 \pset pager off
 \timing on
 
-BEGIN TRANSACTION READ ONLY;
+BEGIN TRANSACTION ISOLATION LEVEL REPEATABLE READ READ ONLY;
 SET LOCAL statement_timeout = '180s';
 SET LOCAL lock_timeout = '3s';
 
