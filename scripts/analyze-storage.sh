@@ -43,14 +43,15 @@ SELECT
   pg_size_pretty(pg_database_size(current_database())) AS database_size;
 
 SELECT
-  relname AS table_name,
-  pg_size_pretty(pg_total_relation_size(relid)) AS total_size,
-  pg_size_pretty(pg_relation_size(relid)) AS table_size,
-  pg_size_pretty(pg_indexes_size(relid)) AS index_size,
-  n_live_tup AS estimated_live_rows,
-  n_dead_tup AS estimated_dead_rows
-FROM pg_catalog.pg_statio_user_tables
-ORDER BY pg_total_relation_size(relid) DESC
+  io.relname AS table_name,
+  pg_size_pretty(pg_total_relation_size(io.relid)) AS total_size,
+  pg_size_pretty(pg_relation_size(io.relid)) AS table_size,
+  pg_size_pretty(pg_indexes_size(io.relid)) AS index_size,
+  stats.n_live_tup AS estimated_live_rows,
+  stats.n_dead_tup AS estimated_dead_rows
+FROM pg_catalog.pg_statio_user_tables AS io
+JOIN pg_catalog.pg_stat_user_tables AS stats ON stats.relid = io.relid
+ORDER BY pg_total_relation_size(io.relid) DESC
 LIMIT 15;
 
 \echo

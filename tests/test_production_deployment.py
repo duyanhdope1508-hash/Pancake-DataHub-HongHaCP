@@ -160,6 +160,8 @@ def test_storage_audit_is_read_only_and_bounded() -> None:
     assert "statement_timeout = '180s'" in audit
     assert "lock_timeout = '3s'" in audit
     assert "pg_total_relation_size" in audit
+    assert "pg_stat_user_tables AS stats" in audit
+    assert "stats.relid = io.relid" in audit
     assert "r.ingested_at <= c.transformed_at" in audit
     for destructive_statement in (
         "DELETE FROM",
