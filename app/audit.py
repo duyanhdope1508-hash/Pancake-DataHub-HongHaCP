@@ -165,9 +165,17 @@ def list_audit_logs(
     ip_address: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
+    visible_actor_roles: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     actor = aliased(User)
-    filters = []
+    visibility_filters = []
+    if visible_actor_roles is not None:
+        visibility_filters.append(
+            AuditLog.actor_user_id.in_(
+                select(User.id).where(User.role.in_(visible_actor_roles))
+            )
+        )
+    filters = list(visibility_filters)
     if action:
         filters.append(AuditLog.action == action)
     if actor_user_id:
@@ -194,21 +202,28 @@ def list_audit_logs(
     ).all()
     actions = list(
         session.scalars(
-            select(AuditLog.action).distinct().order_by(AuditLog.action)
+            select(AuditLog.action)
+            .where(*visibility_filters)
+            .distinct()
+            .order_by(AuditLog.action)
         ).all()
     )
+    actor_filters = [
+        select(1).where(AuditLog.actor_user_id == User.id).exists()
+    ]
+    if visible_actor_roles is not None:
+        actor_filters.append(User.role.in_(visible_actor_roles))
     actors = session.execute(
         select(User.id, User.username, User.display_name)
-        .where(
-            select(1)
-            .where(AuditLog.actor_user_id == User.id)
-            .exists()
-        )
+        .where(*actor_filters)
         .order_by(User.display_name, User.username)
     ).all()
     results = list(
         session.scalars(
-            select(AuditLog.result).distinct().order_by(AuditLog.result)
+            select(AuditLog.result)
+            .where(*visibility_filters)
+            .distinct()
+            .order_by(AuditLog.result)
         ).all()
     )
 
@@ -250,16 +265,23 @@ def list_security_alerts(
     hours: int = 24,
     limit: int = 50,
     now: datetime | None = None,
+    visible_actor_roles: tuple[str, ...] | None = None,
 ) -> dict[str, Any]:
     if hours < 1 or limit < 1:
         raise ValueError("Security alert window and limit must be positive.")
     current_time = now or datetime.now(UTC)
     cutoff = current_time - timedelta(hours=hours)
     actor = aliased(User)
-    filters = (
+    filters = [
         AuditLog.action.in_(SECURITY_ALERT_ACTIONS),
         AuditLog.created_at >= cutoff,
-    )
+    ]
+    if visible_actor_roles is not None:
+        filters.append(
+            AuditLog.actor_user_id.in_(
+                select(User.id).where(User.role.in_(visible_actor_roles))
+            )
+        )
     total = session.scalar(
         select(func.count()).select_from(AuditLog).where(*filters)
     ) or 0

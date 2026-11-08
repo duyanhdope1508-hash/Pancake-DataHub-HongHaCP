@@ -164,6 +164,34 @@ def test_audit_log_listing_supports_action_filter() -> None:
     assert result["pagination"]["page_number"] == 2
 
 
+def test_regular_admin_audit_scope_excludes_admin_and_system_actors() -> None:
+    session = Mock()
+    session.scalar.return_value = 0
+    session.execute.side_effect = [
+        Mock(all=Mock(return_value=[])),
+        Mock(all=Mock(return_value=[])),
+    ]
+    session.scalars.return_value.all.return_value = []
+
+    result = list_audit_logs(
+        session,
+        actor_user_id="root-user-id",
+        visible_actor_roles=("staff",),
+    )
+
+    count_sql = str(session.scalar.call_args.args[0])
+    rows_sql = str(session.execute.call_args_list[0].args[0])
+    actors_sql = str(session.execute.call_args_list[1].args[0])
+    option_sql = [str(call.args[0]) for call in session.scalars.call_args_list]
+
+    assert result["items"] == []
+    assert "auth_users.role IN" in count_sql
+    assert "audit_logs.actor_user_id =" in count_sql
+    assert "auth_users.role IN" in rows_sql
+    assert "auth_users.role IN" in actors_sql
+    assert all("auth_users.role IN" in statement for statement in option_sql)
+
+
 def test_security_alerts_return_recent_actor_and_usage() -> None:
     session = Mock()
     session.scalar.return_value = 1
@@ -194,3 +222,21 @@ def test_security_alerts_return_recent_actor_and_usage() -> None:
     assert result["hours"] == 24
     assert result["items"][0]["actor_username"] == "staff"
     assert result["items"][0]["metadata"]["percent"] == 80
+
+
+def test_regular_admin_security_alerts_only_include_staff() -> None:
+    session = Mock()
+    session.scalar.return_value = 0
+    session.execute.return_value.all.return_value = []
+
+    result = list_security_alerts(
+        session,
+        visible_actor_roles=("staff",),
+        now=datetime(2026, 11, 6, 9, 0, tzinfo=UTC),
+    )
+
+    count_sql = str(session.scalar.call_args.args[0])
+    rows_sql = str(session.execute.call_args.args[0])
+    assert result["items"] == []
+    assert "auth_users.role IN" in count_sql
+    assert "auth_users.role IN" in rows_sql

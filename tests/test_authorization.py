@@ -9,6 +9,7 @@ from app.authorization import (
     require_admin,
     require_root_admin,
     scoped_shop_filter,
+    visible_audit_actor_roles,
 )
 from app.models import User
 
@@ -65,6 +66,16 @@ def test_only_root_admin_can_use_root_action() -> None:
 
     assert exc_info.value.status_code == 403
     require_root_admin(root_admin)
+
+
+def test_regular_admin_only_sees_staff_audit_actors() -> None:
+    regular_admin = _user("admin")
+    regular_admin.is_root_admin = False
+    root_admin = _user("admin")
+    root_admin.is_root_admin = True
+
+    assert visible_audit_actor_roles(regular_admin) == ("staff",)
+    assert visible_audit_actor_roles(root_admin) is None
 
 
 def test_staff_without_shop_assignments_gets_empty_scope() -> None:

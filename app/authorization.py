@@ -24,6 +24,12 @@ def require_root_admin(user: User) -> None:
         )
 
 
+def visible_audit_actor_roles(user: User) -> tuple[str, ...] | None:
+    """Root sees every audit actor; regular admins see employee activity only."""
+    require_admin(user)
+    return None if user.is_root_admin else ("staff",)
+
+
 def authorized_shop_ids(session: Session, user: User) -> tuple[str, ...] | None:
     if user.role == "admin":
         return None

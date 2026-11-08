@@ -14,8 +14,8 @@ def test_frontend_uses_versioned_assets() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
     assert 'href="/assets/favicon.svg?v=1"' in html
-    assert 'href="/assets/styles.css?v=35"' in html
-    assert 'src="/assets/app.js?v=35"' in html
+    assert 'href="/assets/styles.css?v=36"' in html
+    assert 'src="/assets/app.js?v=36"' in html
 
 
 def test_overview_counts_refresh_without_reloading_the_page() -> None:
@@ -108,6 +108,10 @@ def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:
     assert "result.temporary_password" in javascript
     assert "navigator.clipboard.writeText" in javascript
     assert "user.role !== \"admin\"" in javascript
+    assert "state.currentUser?.is_root_admin" in javascript
+    assert '"Tất cả tài khoản"' in javascript
+    assert '"Tất cả nhân viên"' in javascript
+    assert '"Nhật ký nhân viên"' in javascript
     assert "user.is_root_admin" in javascript
     assert "user.can_manage" in javascript
 
@@ -188,6 +192,7 @@ def test_admin_receives_bulk_access_security_alerts() -> None:
     assert "security.high_usage" in javascript
     assert "security.rate_limit" in javascript
     assert "60_000" in javascript
+    assert '"Cảnh báo nhân viên lấy dữ liệu hàng loạt"' in javascript
 
 
 def test_mutating_requests_send_session_bound_csrf_header() -> None:

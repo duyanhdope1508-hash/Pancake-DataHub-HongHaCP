@@ -36,6 +36,7 @@ const elements = {
   securityAlertsButton: document.querySelector("#securityAlertsButton"),
   securityAlertCount: document.querySelector("#securityAlertCount"),
   securityAlertsDialog: document.querySelector("#securityAlertsDialog"),
+  securityAlertsDialogTitle: document.querySelector("#securityAlertsDialogTitle"),
   closeSecurityAlertsDialog: document.querySelector("#closeSecurityAlertsDialog"),
   refreshSecurityAlerts: document.querySelector("#refreshSecurityAlerts"),
   securityAlertsList: document.querySelector("#securityAlertsList"),
@@ -85,6 +86,7 @@ const elements = {
   staffListTitle: document.querySelector("#staffListTitle"),
   staffCount: document.querySelector("#staffCount"),
   auditDialog: document.querySelector("#auditDialog"),
+  auditDialogTitle: document.querySelector("#auditDialogTitle"),
   closeAuditDialog: document.querySelector("#closeAuditDialog"),
   auditActionFilter: document.querySelector("#auditActionFilter"),
   auditActorFilter: document.querySelector("#auditActorFilter"),
@@ -532,6 +534,12 @@ function showApplication(user) {
   elements.currentUserName.textContent = text(user.display_name, user.username);
   elements.currentUserRole.textContent = accountRoleLabel(user);
   elements.manageStaffButton.textContent = user.is_root_admin ? "Tài khoản" : "Nhân viên";
+  elements.auditDialogTitle.textContent = user.is_root_admin
+    ? "Nhật ký hoạt động"
+    : "Nhật ký nhân viên";
+  elements.securityAlertsDialogTitle.textContent = user.is_root_admin
+    ? "Cảnh báo lấy dữ liệu hàng loạt"
+    : "Cảnh báo nhân viên lấy dữ liệu hàng loạt";
   elements.manageStaffButton.hidden = user.role !== "admin";
   elements.auditLogButton.hidden = user.role !== "admin";
   elements.securityAlertsButton.hidden = user.role !== "admin";
@@ -1100,7 +1108,13 @@ function renderAuditLog(data) {
   elements.auditActionFilter.replaceChildren(...actionOptions);
   elements.auditActionFilter.value = selectedAction;
 
-  const actorOptions = [createElement("option", "", "Tất cả tài khoản")];
+  const actorOptions = [
+    createElement(
+      "option",
+      "",
+      state.currentUser?.is_root_admin ? "Tất cả tài khoản" : "Tất cả nhân viên",
+    ),
+  ];
   actorOptions[0].value = "";
   for (const actor of data.actors) {
     const label = `${actor.display_name || actor.username} · @${actor.username}`;

@@ -40,6 +40,7 @@ from app.authorization import (
     can_view_revenue,
     require_admin,
     scoped_shop_filter,
+    visible_audit_actor_roles,
 )
 from app.config import get_settings
 from app.db import SessionLocal, init_db
@@ -679,7 +680,8 @@ def admin_audit_logs(
     date_from: Annotated[datetime | None, Query()] = None,
     date_to: Annotated[datetime | None, Query()] = None,
 ) -> dict:
-    require_admin(request.state.current_user)
+    actor = request.state.current_user
+    require_admin(actor)
     with SessionLocal() as session:
         return list_audit_logs(
             session,
@@ -691,6 +693,7 @@ def admin_audit_logs(
             ip_address=ip_address,
             date_from=date_from,
             date_to=date_to,
+            visible_actor_roles=visible_audit_actor_roles(actor),
         )
 
 
@@ -700,9 +703,15 @@ def admin_security_alerts(
     hours: int = Query(default=24, ge=1, le=168),
     limit: int = Query(default=50, ge=1, le=100),
 ) -> dict:
-    require_admin(request.state.current_user)
+    actor = request.state.current_user
+    require_admin(actor)
     with SessionLocal() as session:
-        return list_security_alerts(session, hours=hours, limit=limit)
+        return list_security_alerts(
+            session,
+            hours=hours,
+            limit=limit,
+            visible_actor_roles=visible_audit_actor_roles(actor),
+        )
 
 
 @app.post("/api/admin/users", status_code=201)
