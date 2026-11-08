@@ -74,8 +74,25 @@ async def run_cycle(settings: Settings) -> dict[str, Any]:
     with sync_cycle_lock() as acquired:
         if not acquired:
             return {"status": "skipped", "reason": "already_running"}
+        logger.info("Sync phase started")
         sync_result = await sync_all(settings)
+        logger.info(
+            "Sync phase completed: shops=%s pages=%s rows_seen=%s rows_written=%s failed_connectors=%s",
+            sync_result.get("shops_processed", 0),
+            sync_result.get("pages_processed", 0),
+            sync_result.get("rows_seen", 0),
+            sync_result.get("rows_written", 0),
+            sync_result.get("connectors_failed", 0),
+        )
+        logger.info("Transform phase started")
         transform_result = transform_raw_orders()
+        logger.info(
+            "Transform phase completed: batches=%s orders=%s customers=%s items=%s",
+            transform_result.get("batches_processed", 0),
+            transform_result.get("orders_transformed", 0),
+            transform_result.get("customers_transformed", 0),
+            transform_result.get("items_transformed", 0),
+        )
         return {
             "status": "completed",
             "sync": sync_result,

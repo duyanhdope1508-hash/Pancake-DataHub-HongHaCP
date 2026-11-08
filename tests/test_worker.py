@@ -5,7 +5,7 @@ from app import worker
 from app.config import Settings
 
 
-async def test_run_cycle_syncs_before_transform(monkeypatch) -> None:
+async def test_run_cycle_syncs_before_transform(monkeypatch, caplog) -> None:
     events: list[str] = []
 
     async def fake_sync(_: Settings) -> dict[str, bool]:
@@ -24,7 +24,8 @@ async def test_run_cycle_syncs_before_transform(monkeypatch) -> None:
     monkeypatch.setattr(worker, "transform_raw_orders", fake_transform)
     monkeypatch.setattr(worker, "sync_cycle_lock", fake_lock)
 
-    result = await worker.run_cycle(Settings(_env_file=None))
+    with caplog.at_level(logging.INFO, logger=worker.__name__):
+        result = await worker.run_cycle(Settings(_env_file=None))
 
     assert events == ["sync", "transform"]
     assert result == {
@@ -32,6 +33,10 @@ async def test_run_cycle_syncs_before_transform(monkeypatch) -> None:
         "sync": {"success": True},
         "transform": {"orders_transformed": 3},
     }
+    assert "Sync phase started" in caplog.text
+    assert "Sync phase completed" in caplog.text
+    assert "Transform phase started" in caplog.text
+    assert "Transform phase completed" in caplog.text
 
 
 async def test_run_cycle_skips_when_another_cycle_has_lock(monkeypatch) -> None:
