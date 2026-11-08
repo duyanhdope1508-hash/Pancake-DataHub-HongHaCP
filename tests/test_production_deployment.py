@@ -12,6 +12,7 @@ def test_production_deployment_files_exist() -> None:
         "scripts/install-backup-timer.sh",
         "scripts/monitor-operations.sh",
         "scripts/install-operations-monitor.sh",
+        "scripts/analyze-storage.sh",
         "scripts/restore-postgres.sh",
         "scripts/deploy-production.sh",
     ):
@@ -150,4 +151,21 @@ def test_operations_monitor_checks_services_capacity_and_freshness() -> None:
     assert "OnUnitInactiveSec=5m" in installer
     assert "Persistent=true" in installer
     assert "ExecStart=$PROJECT_DIR/scripts/monitor-operations.sh" in installer
+
+
+def test_storage_audit_is_read_only_and_bounded() -> None:
+    audit = (ROOT / "scripts/analyze-storage.sh").read_text(encoding="utf-8")
+
+    assert "BEGIN TRANSACTION READ ONLY" in audit
+    assert "statement_timeout = '180s'" in audit
+    assert "lock_timeout = '3s'" in audit
+    assert "pg_total_relation_size" in audit
+    assert "r.ingested_at <= c.transformed_at" in audit
+    for destructive_statement in (
+        "DELETE FROM",
+        "TRUNCATE ",
+        "DROP TABLE",
+        "VACUUM FULL",
+    ):
+        assert destructive_statement not in audit.upper()
 
