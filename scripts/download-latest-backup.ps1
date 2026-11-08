@@ -37,7 +37,7 @@ $connectionOptions = @(
 )
 if ($IdentityFile) {
     $resolvedIdentity = (Resolve-Path -LiteralPath $IdentityFile).Path
-    $connectionOptions += @("-i", $resolvedIdentity)
+    $connectionOptions += @("-o", "IdentitiesOnly=yes", "-i", $resolvedIdentity)
 }
 
 $remoteCommand = @"
