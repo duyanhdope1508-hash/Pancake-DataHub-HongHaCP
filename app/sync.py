@@ -214,11 +214,11 @@ async def _sync_connector(
                             if not orders:
                                 break
                             result["pages_processed"] += 1
+                            page_seen = len(orders)
+                            result["rows_seen"] += page_seen
 
                             page_written = 0
                             for order in orders:
-                                result["rows_seen"] += 1
-                                run.rows_seen += 1
                                 order_id = _record_id(
                                     order, "id", "order_id", "source_order_id"
                                 )
@@ -243,6 +243,7 @@ async def _sync_connector(
                                 if write_result.scalar_one_or_none() is not None:
                                     page_written += 1
 
+                            run.rows_seen += page_seen
                             run.rows_written += page_written
                             result["rows_written"] += page_written
                             session.commit()

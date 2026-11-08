@@ -98,9 +98,11 @@ async def run_cycle(settings: Settings) -> dict[str, Any]:
         if interrupted_runs:
             logger.warning("Cancelled %s interrupted sync runs", interrupted_runs)
         logger.info("Sync phase started")
+        sync_started_at = monotonic()
         sync_result = await sync_all(settings)
         logger.info(
-            "Sync phase completed: shops=%s pages=%s rows_seen=%s rows_written=%s failed_connectors=%s",
+            "Sync phase completed in %.1fs: shops=%s pages=%s rows_seen=%s rows_written=%s failed_connectors=%s",
+            monotonic() - sync_started_at,
             sync_result.get("shops_processed", 0),
             sync_result.get("pages_processed", 0),
             sync_result.get("rows_seen", 0),
@@ -108,9 +110,11 @@ async def run_cycle(settings: Settings) -> dict[str, Any]:
             sync_result.get("connectors_failed", 0),
         )
         logger.info("Transform phase started")
+        transform_started_at = monotonic()
         transform_result = transform_raw_orders()
         logger.info(
-            "Transform phase completed: batches=%s orders=%s customers=%s items=%s",
+            "Transform phase completed in %.1fs: batches=%s orders=%s customers=%s items=%s",
+            monotonic() - transform_started_at,
             transform_result.get("batches_processed", 0),
             transform_result.get("orders_transformed", 0),
             transform_result.get("customers_transformed", 0),

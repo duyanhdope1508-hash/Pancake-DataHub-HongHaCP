@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from sqlalchemy.dialects import postgresql
 
 from app.config import Settings
@@ -86,3 +88,11 @@ def test_raw_order_upsert_only_updates_changed_payloads() -> None:
 
     assert "IS DISTINCT FROM" in compiled
     assert "RETURNING raw_pancake_orders.source_order_id" in compiled
+
+
+def test_sync_updates_run_progress_once_per_page() -> None:
+    source = Path("app/sync.py").read_text(encoding="utf-8")
+
+    assert 'page_seen = len(orders)' in source
+    assert 'run.rows_seen += page_seen' in source
+    assert 'run.rows_seen += 1' not in source
