@@ -50,13 +50,14 @@ from app.order_filters import order_filters
 from app.search import search_orders, summarize_orders
 from app.status import database_status
 from app.user_management import (
+    AccountPermissionError,
     DuplicateUsernameError,
     StaffNotFoundError,
     UnknownShopError,
-    create_staff,
-    delete_staff,
+    create_managed_user,
+    delete_managed_user,
     management_snapshot,
-    update_staff,
+    update_managed_user,
 )
 from app.worker import run_cycle
 
@@ -103,6 +104,7 @@ class ChangePasswordRequest(BaseModel):
 class CreateStaffRequest(BaseModel):
     username: str = Field(min_length=1, max_length=64)
     display_name: str = Field(min_length=1, max_length=255)
+    role: Literal["admin", "staff"] = "staff"
     shop_ids: list[str] = Field(default_factory=list, max_length=100)
 
 
@@ -144,6 +146,8 @@ def _safe_user(user: User) -> dict:
         "username": user.username,
         "display_name": user.display_name,
         "role": user.role,
+        "is_root_admin": bool(user.is_root_admin),
+        "can_manage_admins": bool(user.is_root_admin),
         "must_change_password": user.must_change_password,
         "can_sync": user.role == "admin",
         "can_view_revenue": can_view_revenue(user),
@@ -644,20 +648,23 @@ def change_password(request: Request, payload: ChangePasswordRequest) -> dict[st
 
 
 def _staff_error_response(exc: Exception) -> HTTPException:
+    if isinstance(exc, AccountPermissionError):
+        return HTTPException(status_code=403, detail=str(exc))
     if isinstance(exc, DuplicateUsernameError):
         return HTTPException(status_code=409, detail=str(exc))
     if isinstance(exc, UnknownShopError):
         return HTTPException(status_code=422, detail="Có cửa hàng không tồn tại.")
     if isinstance(exc, StaffNotFoundError):
-        return HTTPException(status_code=404, detail="Không tìm thấy nhân viên.")
+        return HTTPException(status_code=404, detail="Không tìm thấy tài khoản.")
     return HTTPException(status_code=422, detail=str(exc))
 
 
 @app.get("/api/admin/users")
 def admin_users(request: Request) -> dict:
-    require_admin(request.state.current_user)
+    actor = request.state.current_user
+    require_admin(actor)
     with SessionLocal() as session:
-        return management_snapshot(session)
+        return management_snapshot(session, actor)
 
 
 @app.get("/api/admin/audit-logs")
@@ -708,24 +715,35 @@ def admin_create_staff(request: Request, payload: CreateStaffRequest) -> dict:
     ip_address, user_agent = _audit_client(request)
     with SessionLocal() as session:
         try:
-            user = create_staff(
+            user = create_managed_user(
                 session,
+                actor=actor,
                 username=payload.username,
                 display_name=payload.display_name,
                 password=temporary_password,
+                role=payload.role,
                 shop_ids=payload.shop_ids,
             )
-        except (DuplicateUsernameError, UnknownShopError, ValueError) as exc:
+        except (
+            AccountPermissionError,
+            DuplicateUsernameError,
+            UnknownShopError,
+            ValueError,
+        ) as exc:
             session.rollback()
             raise _staff_error_response(exc) from exc
+        audit_prefix = "admin" if user.role == "admin" else "staff"
         session.add(
             AuditLog(
                 actor_user_id=actor.id,
-                action="staff.create",
+                action=f"{audit_prefix}.create",
                 resource_type="user",
                 resource_id=user.id,
                 result="success",
-                metadata_json={"shop_count": len(payload.shop_ids)},
+                metadata_json={
+                    "target_role": user.role,
+                    "shop_count": len(payload.shop_ids) if user.role == "staff" else 0,
+                },
                 ip_address=ip_address,
                 user_agent=user_agent,
             )
@@ -735,6 +753,7 @@ def admin_create_staff(request: Request, payload: CreateStaffRequest) -> dict:
             "status": "created",
             "user_id": user.id,
             "username": user.username,
+            "role": user.role,
             "temporary_password": temporary_password,
         }
 
@@ -753,28 +772,36 @@ def admin_update_staff(
     ip_address, user_agent = _audit_client(request)
     with SessionLocal() as session:
         try:
-            user = update_staff(
+            user = update_managed_user(
                 session,
+                actor=actor,
                 user_id=user_id,
                 display_name=payload.display_name,
                 is_active=payload.is_active,
                 shop_ids=payload.shop_ids,
                 password=temporary_password,
             )
-        except (StaffNotFoundError, UnknownShopError, ValueError) as exc:
+        except (
+            AccountPermissionError,
+            StaffNotFoundError,
+            UnknownShopError,
+            ValueError,
+        ) as exc:
             session.rollback()
             raise _staff_error_response(exc) from exc
+        audit_prefix = "admin" if user.role == "admin" else "staff"
         session.add(
             AuditLog(
                 actor_user_id=actor.id,
-                action="staff.update",
+                action=f"{audit_prefix}.update",
                 resource_type="user",
                 resource_id=user.id,
                 result="success",
                 metadata_json={
                     "active": payload.is_active,
+                    "target_role": user.role,
                     "password_changed": payload.reset_password,
-                    "shop_count": len(payload.shop_ids),
+                    "shop_count": len(payload.shop_ids) if user.role == "staff" else 0,
                 },
                 ip_address=ip_address,
                 user_agent=user_agent,
@@ -785,6 +812,7 @@ def admin_update_staff(
             "status": "updated",
             "user_id": user.id,
             "username": user.username,
+            "role": user.role,
             "temporary_password": temporary_password,
         }
 
@@ -796,20 +824,22 @@ def admin_delete_staff(request: Request, user_id: str) -> dict:
     ip_address, user_agent = _audit_client(request)
     with SessionLocal() as session:
         try:
-            user = delete_staff(session, user_id=user_id)
-        except StaffNotFoundError as exc:
+            user = delete_managed_user(session, actor=actor, user_id=user_id)
+        except (AccountPermissionError, StaffNotFoundError) as exc:
             session.rollback()
             raise _staff_error_response(exc) from exc
+        audit_prefix = "admin" if user.role == "admin" else "staff"
         session.add(
             AuditLog(
                 actor_user_id=actor.id,
-                action="staff.delete",
+                action=f"{audit_prefix}.delete",
                 resource_type="user",
                 resource_id=user.id,
                 result="success",
                 metadata_json={
                     "username": user.username,
                     "display_name": user.display_name,
+                    "target_role": user.role,
                 },
                 ip_address=ip_address,
                 user_agent=user_agent,
@@ -820,6 +850,7 @@ def admin_delete_staff(request: Request, user_id: str) -> dict:
             "status": "deleted",
             "user_id": user.id,
             "username": user.username,
+            "role": user.role,
         }
 
 

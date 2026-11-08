@@ -57,16 +57,20 @@ const elements = {
   cancelPasswordChange: document.querySelector("#cancelPasswordChange"),
   savePasswordButton: document.querySelector("#savePasswordButton"),
   staffDialog: document.querySelector("#staffDialog"),
+  staffDialogTitle: document.querySelector("#staffDialogTitle"),
   closeStaffDialog: document.querySelector("#closeStaffDialog"),
   staffForm: document.querySelector("#staffForm"),
   staffFormTitle: document.querySelector("#staffFormTitle"),
   staffUserId: document.querySelector("#staffUserId"),
   staffDisplayName: document.querySelector("#staffDisplayName"),
   staffUsername: document.querySelector("#staffUsername"),
+  staffRoleField: document.querySelector("#staffRoleField"),
+  staffRole: document.querySelector("#staffRole"),
   staffResetPasswordField: document.querySelector("#staffResetPasswordField"),
   staffResetPassword: document.querySelector("#staffResetPassword"),
   staffActiveField: document.querySelector("#staffActiveField"),
   staffIsActive: document.querySelector("#staffIsActive"),
+  staffShopSelector: document.querySelector("#staffShopSelector"),
   staffShopOptions: document.querySelector("#staffShopOptions"),
   staffFormMessage: document.querySelector("#staffFormMessage"),
   temporaryCredential: document.querySelector("#temporaryCredential"),
@@ -78,6 +82,7 @@ const elements = {
   selectAllStaffShops: document.querySelector("#selectAllStaffShops"),
   clearStaffShops: document.querySelector("#clearStaffShops"),
   staffList: document.querySelector("#staffList"),
+  staffListTitle: document.querySelector("#staffListTitle"),
   staffCount: document.querySelector("#staffCount"),
   auditDialog: document.querySelector("#auditDialog"),
   closeAuditDialog: document.querySelector("#closeAuditDialog"),
@@ -164,6 +169,9 @@ const AUDIT_ACTION_LABELS = {
   "staff.create": "Tạo nhân viên",
   "staff.update": "Sửa nhân viên",
   "staff.delete": "Xóa nhân viên",
+  "admin.create": "Tạo quản trị viên",
+  "admin.update": "Sửa quản trị viên",
+  "admin.delete": "Xóa quản trị viên",
   "orders.sync": "Đồng bộ đơn",
   "orders.export": "Xuất Excel",
   "orders.view_detail": "Xem chi tiết đơn",
@@ -511,13 +519,19 @@ function updateDevtoolsPrivacyShield() {
   elements.devtoolsPrivacyShield.hidden = !active;
 }
 
+function accountRoleLabel(user) {
+  if (user.is_root_admin) return "Quản trị gốc";
+  return user.role === "admin" ? "Quản trị viên" : "Nhân viên";
+}
+
 function showApplication(user) {
   state.currentUser = user;
   renderScreenWatermark();
   if (state.watermarkTimer !== null) window.clearInterval(state.watermarkTimer);
   state.watermarkTimer = window.setInterval(renderScreenWatermark, 60_000);
   elements.currentUserName.textContent = text(user.display_name, user.username);
-  elements.currentUserRole.textContent = user.role === "admin" ? "Quản trị viên" : "Nhân viên";
+  elements.currentUserRole.textContent = accountRoleLabel(user);
+  elements.manageStaffButton.textContent = user.is_root_admin ? "Tài khoản" : "Nhân viên";
   elements.manageStaffButton.hidden = user.role !== "admin";
   elements.auditLogButton.hidden = user.role !== "admin";
   elements.securityAlertsButton.hidden = user.role !== "admin";
@@ -690,20 +704,34 @@ function renderStaffShopOptions(selectedShopIds = []) {
   elements.staffShopOptions.replaceChildren(...options);
 }
 
+function updateAccountRoleFields() {
+  const isAdminAccount = elements.staffRole.value === "admin";
+  elements.staffShopSelector.hidden = isAdminAccount;
+  if (isAdminAccount) {
+    for (const input of elements.staffShopOptions.querySelectorAll('input[type="checkbox"]')) {
+      input.checked = false;
+    }
+  }
+}
+
 function resetStaffForm() {
   elements.staffForm.reset();
   elements.staffUserId.value = "";
   elements.staffUsername.disabled = false;
   elements.staffUsername.required = true;
+  elements.staffRole.value = "staff";
+  elements.staffRole.disabled = false;
+  elements.staffRoleField.hidden = !state.currentUser?.is_root_admin;
   elements.staffResetPassword.checked = false;
   elements.staffResetPasswordField.hidden = true;
   elements.staffActiveField.hidden = true;
-  elements.staffFormTitle.textContent = "Thêm nhân viên";
-  elements.saveStaffButton.textContent = "Tạo nhân viên";
+  elements.staffFormTitle.textContent = "Thêm tài khoản";
+  elements.saveStaffButton.textContent = "Tạo tài khoản";
   elements.cancelStaffEdit.hidden = true;
   setStaffFormMessage("");
   hideTemporaryCredential();
   renderStaffShopOptions();
+  updateAccountRoleFields();
 }
 
 function beginStaffEdit(user) {
@@ -712,6 +740,9 @@ function beginStaffEdit(user) {
   elements.staffUsername.value = user.username;
   elements.staffUsername.disabled = true;
   elements.staffUsername.required = false;
+  elements.staffRole.value = user.role;
+  elements.staffRole.disabled = true;
+  elements.staffRoleField.hidden = !state.currentUser?.is_root_admin;
   elements.staffResetPassword.checked = false;
   elements.staffResetPasswordField.hidden = false;
   elements.staffIsActive.checked = user.is_active;
@@ -722,12 +753,14 @@ function beginStaffEdit(user) {
   setStaffFormMessage("");
   hideTemporaryCredential();
   renderStaffShopOptions(user.shop_ids);
+  updateAccountRoleFields();
   elements.staffDisplayName.focus();
 }
 
 async function deleteStaff(user, button) {
+  const roleLabel = accountRoleLabel(user);
   const confirmed = window.confirm(
-    `Xóa nhân viên "${user.display_name}" (@${user.username})?\n\n` +
+    `Xóa ${roleLabel.toLowerCase()} "${user.display_name}" (@${user.username})?\n\n` +
       "Tài khoản sẽ bị đăng xuất, mất toàn bộ quyền shop và không thể đăng nhập lại.",
   );
   if (!confirmed) return;
@@ -747,9 +780,9 @@ async function deleteStaff(user, button) {
     }
     if (elements.staffUserId.value === user.id) resetStaffForm();
     await loadStaffManagement();
-    setStaffFormMessage(`Đã xóa tài khoản @${user.username} và thu hồi mọi phiên đăng nhập.`);
+    setStaffFormMessage(`Đã xóa @${user.username} và thu hồi mọi phiên đăng nhập.`);
   } catch (error) {
-    setStaffFormMessage(`Không thể xóa nhân viên. ${error.message}`, true);
+    setStaffFormMessage(`Không thể xóa tài khoản. ${error.message}`, true);
     button.disabled = false;
     button.textContent = "Xóa";
   }
@@ -763,7 +796,7 @@ function renderStaffList() {
   elements.staffCount.textContent = `${integerFormatter.format(users.length)} tài khoản`;
   if (users.length === 0) {
     elements.staffList.replaceChildren(
-      createElement("p", "staff-list-empty", "Chưa có tài khoản nhân viên."),
+      createElement("p", "staff-list-empty", "Chưa có tài khoản phù hợp."),
     );
     return;
   }
@@ -775,6 +808,11 @@ function renderStaffList() {
     identity.append(
       createElement("strong", "", user.display_name),
       createElement("span", "", `@${user.username}`),
+      createElement(
+        "span",
+        `staff-role-badge${user.is_root_admin ? " is-root" : ""}`,
+        accountRoleLabel(user),
+      ),
     );
     const statusText = user.is_active
       ? user.must_change_password
@@ -799,7 +837,11 @@ function renderStaffList() {
     const shops = createElement(
       "p",
       "staff-card-shops",
-      assignedShops.length ? assignedShops.join(" · ") : "Chưa được cấp shop",
+      user.role === "admin"
+        ? "Toàn quyền cửa hàng và dữ liệu"
+        : assignedShops.length
+          ? assignedShops.join(" · ")
+          : "Chưa được cấp shop",
     );
     const footer = createElement("div", "staff-card-footer");
     footer.append(
@@ -814,15 +856,19 @@ function renderStaffList() {
           .join(" · "),
       ),
     );
-    const editButton = createElement("button", "secondary-button", "Sửa quyền");
-    editButton.type = "button";
-    editButton.addEventListener("click", () => beginStaffEdit(user));
-    const deleteButton = createElement("button", "delete-staff-button", "Xóa");
-    deleteButton.type = "button";
-    deleteButton.addEventListener("click", () => deleteStaff(user, deleteButton));
-    const actions = createElement("div", "staff-card-actions");
-    actions.append(editButton, deleteButton);
-    footer.append(actions);
+    if (user.can_manage) {
+      const editButton = createElement("button", "secondary-button", "Sửa quyền");
+      editButton.type = "button";
+      editButton.addEventListener("click", () => beginStaffEdit(user));
+      const deleteButton = createElement("button", "delete-staff-button", "Xóa");
+      deleteButton.type = "button";
+      deleteButton.addEventListener("click", () => deleteStaff(user, deleteButton));
+      const actions = createElement("div", "staff-card-actions");
+      actions.append(editButton, deleteButton);
+      footer.append(actions);
+    } else if (user.is_root_admin) {
+      footer.append(createElement("span", "", "Tài khoản gốc được bảo vệ"));
+    }
     card.append(header, shops, footer);
     return card;
   });
@@ -834,6 +880,13 @@ async function loadStaffManagement() {
     createElement("p", "staff-list-empty", "Đang tải tài khoản…"),
   );
   state.staffManagement = await fetchJson("/api/admin/users");
+  const rootView = state.staffManagement.viewer_is_root_admin;
+  elements.staffDialogTitle.textContent = rootView
+    ? "Quản lý quản trị viên và nhân viên"
+    : "Quản lý nhân viên";
+  elements.staffListTitle.textContent = rootView
+    ? "Danh sách tài khoản"
+    : "Danh sách nhân viên";
   renderStaffList();
   resetStaffForm();
 }
@@ -863,6 +916,7 @@ async function saveStaff(event) {
     payload.reset_password = elements.staffResetPassword.checked;
   } else {
     payload.username = elements.staffUsername.value;
+    payload.role = elements.staffRole.value;
   }
 
   elements.saveStaffButton.disabled = true;
@@ -887,10 +941,10 @@ async function saveStaff(event) {
       setStaffFormMessage(
         isEditing
           ? "Đã đặt lại mật khẩu và đăng xuất các phiên cũ."
-          : "Đã tạo nhân viên. Hãy sao chép thông tin đăng nhập bên dưới.",
+          : "Đã tạo tài khoản. Hãy sao chép thông tin đăng nhập bên dưới.",
       );
     } else {
-      setStaffFormMessage(isEditing ? "Đã cập nhật nhân viên." : "Đã tạo nhân viên.");
+      setStaffFormMessage(isEditing ? "Đã cập nhật tài khoản." : "Đã tạo tài khoản.");
     }
   } catch (error) {
     setStaffFormMessage(error.message, true);
@@ -898,7 +952,7 @@ async function saveStaff(event) {
     elements.saveStaffButton.disabled = false;
     elements.saveStaffButton.textContent = elements.staffUserId.value
       ? "Lưu thay đổi"
-      : "Tạo nhân viên";
+      : "Tạo tài khoản";
   }
 }
 
@@ -938,7 +992,7 @@ function auditDetail(item) {
       .filter(Boolean)
       .join(" · ");
   }
-  if (item.action === "staff.create" || item.action === "staff.update") {
+  if (["staff.create", "staff.update", "admin.create", "admin.update"].includes(item.action)) {
     const parts = [];
     if (metadata.shop_count !== undefined) {
       parts.push(`${integerFormatter.format(metadata.shop_count)} shop`);
@@ -947,10 +1001,10 @@ function auditDetail(item) {
     if (metadata.active === false) parts.push("Đã khóa tài khoản");
     return parts.join(" · ") || "—";
   }
-  if (item.action === "staff.delete") {
+  if (["staff.delete", "admin.delete"].includes(item.action)) {
     return metadata.username
       ? `@${metadata.username} · Đã thu hồi quyền và phiên đăng nhập`
-      : "Đã thu hồi tài khoản nhân viên";
+      : "Đã thu hồi tài khoản";
   }
   if (item.action === "auth.login" && item.result === "denied") {
     return metadata.username ? `Tài khoản: ${metadata.username}` : "Sai thông tin đăng nhập";
@@ -1836,6 +1890,7 @@ elements.passwordDialog.addEventListener("click", (event) => {
 });
 elements.manageStaffButton.addEventListener("click", openStaffManagement);
 elements.staffForm.addEventListener("submit", saveStaff);
+elements.staffRole.addEventListener("change", updateAccountRoleFields);
 elements.cancelStaffEdit.addEventListener("click", resetStaffForm);
 elements.copyTemporaryCredential.addEventListener("click", copyTemporaryCredential);
 elements.selectAllStaffShops.addEventListener("click", () => {

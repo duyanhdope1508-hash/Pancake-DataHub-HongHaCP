@@ -567,6 +567,49 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261108_022_add_root_admin",
+        (
+            (
+                "ALTER TABLE auth_users ADD COLUMN IF NOT EXISTS "
+                "is_root_admin BOOLEAN NOT NULL DEFAULT FALSE"
+            ),
+            """
+            DO $$
+            BEGIN
+                IF NOT EXISTS (
+                    SELECT 1 FROM pg_constraint
+                    WHERE conname = 'ck_auth_users_root_is_admin'
+                ) THEN
+                    ALTER TABLE auth_users
+                    ADD CONSTRAINT ck_auth_users_root_is_admin
+                    CHECK (NOT is_root_admin OR role = 'admin');
+                END IF;
+            END
+            $$
+            """,
+            """
+            UPDATE auth_users
+            SET is_root_admin = TRUE
+            WHERE id = (
+                SELECT id
+                FROM auth_users
+                WHERE role = 'admin'
+                  AND deleted_at IS NULL
+                  AND LOWER(BTRIM(display_name)) = 'daniel ng'
+                ORDER BY created_at
+                LIMIT 1
+            )
+              AND NOT EXISTS (
+                  SELECT 1 FROM auth_users WHERE is_root_admin = TRUE
+              )
+            """,
+            (
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_auth_users_single_root_admin "
+                "ON auth_users (is_root_admin) WHERE is_root_admin"
+            ),
+        ),
+    ),
 )
 
 

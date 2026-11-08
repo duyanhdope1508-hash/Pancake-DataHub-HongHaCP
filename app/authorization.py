@@ -15,6 +15,15 @@ def require_admin(user: User) -> None:
         )
 
 
+def require_root_admin(user: User) -> None:
+    require_admin(user)
+    if not user.is_root_admin:
+        raise HTTPException(
+            status_code=403,
+            detail="Chỉ quản trị gốc mới được quản lý tài khoản quản trị viên.",
+        )
+
+
 def authorized_shop_ids(session: Session, user: User) -> tuple[str, ...] | None:
     if user.role == "admin":
         return None

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -39,6 +40,16 @@ class User(Base):
     __tablename__ = "auth_users"
     __table_args__ = (
         CheckConstraint("role IN ('admin', 'staff')", name="ck_auth_users_role"),
+        CheckConstraint(
+            "NOT is_root_admin OR role = 'admin'",
+            name="ck_auth_users_root_is_admin",
+        ),
+        Index(
+            "ux_auth_users_single_root_admin",
+            "is_root_admin",
+            unique=True,
+            postgresql_where=text("is_root_admin"),
+        ),
     )
 
     id: Mapped[str] = mapped_column(
@@ -51,6 +62,9 @@ class User(Base):
         Boolean, nullable=False, default=False
     )
     role: Mapped[str] = mapped_column(String(32), nullable=False, default="staff")
+    is_root_admin: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

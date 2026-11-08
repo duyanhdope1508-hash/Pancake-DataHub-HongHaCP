@@ -5,9 +5,12 @@ import pytest
 from app.models import Shop, User, UserShopAccess
 from app.security import verify_password
 from app.user_management import (
+    AccountPermissionError,
     DuplicateUsernameError,
     StaffNotFoundError,
     UnknownShopError,
+    can_manage_account,
+    create_managed_user,
     create_staff,
     delete_staff,
     normalize_shop_ids,
@@ -23,6 +26,19 @@ def _staff() -> User:
         password_hash="old-hash",
         must_change_password=False,
         role="staff",
+        is_active=True,
+    )
+
+
+def _admin(*, root: bool = False, user_id: str = "admin-1") -> User:
+    return User(
+        id=user_id,
+        username=user_id,
+        display_name="Daniel Ng" if root else "Admin thường",
+        password_hash="hash",
+        must_change_password=False,
+        role="admin",
+        is_root_admin=root,
         is_active=True,
     )
 
@@ -87,6 +103,49 @@ def test_create_staff_rejects_unknown_shop() -> None:
         )
 
     assert exc_info.value.shop_ids == ["missing-shop"]
+
+
+def test_only_root_admin_can_create_another_admin() -> None:
+    session = Mock()
+
+    with pytest.raises(AccountPermissionError):
+        create_managed_user(
+            session,
+            actor=_admin(),
+            username="hung.admin",
+            display_name="Hùng Phạm",
+            password="a secure temporary password",
+            role="admin",
+            shop_ids=[],
+        )
+
+    session.scalar.return_value = None
+    created = create_managed_user(
+        session,
+        actor=_admin(root=True),
+        username="hung.admin",
+        display_name="Hùng Phạm",
+        password="a secure temporary password",
+        role="admin",
+        shop_ids=["shop-ignored"],
+    )
+
+    assert created.role == "admin"
+    assert created.is_root_admin is False
+    assert list(session.add_all.call_args.args[0]) == []
+
+
+def test_root_can_manage_regular_admin_but_cannot_manage_itself() -> None:
+    root = _admin(root=True, user_id="root-1")
+    regular_admin = _admin(user_id="admin-2")
+    staff = _staff()
+
+    assert can_manage_account(root, regular_admin) is True
+    assert can_manage_account(root, staff) is True
+    assert can_manage_account(root, root) is False
+    assert can_manage_account(regular_admin, staff) is True
+    assert can_manage_account(regular_admin, root) is False
+    assert can_manage_account(regular_admin, regular_admin) is False
 
 
 def test_update_staff_replaces_access_and_revokes_sessions_after_password_change() -> None:

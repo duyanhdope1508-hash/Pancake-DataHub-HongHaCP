@@ -26,11 +26,16 @@ def create_admin(
     if existing is not None:
         raise ValueError("Tên đăng nhập đã tồn tại.")
 
+    has_root_admin = bool(
+        session.scalar(select(User.id).where(User.is_root_admin.is_(True)))
+    )
+
     user = User(
         username=normalized_username,
         display_name=clean_display_name,
         password_hash=hash_password(password),
         role="admin",
+        is_root_admin=not has_root_admin,
         is_active=True,
     )
     session.add(user)
@@ -65,7 +70,8 @@ def main() -> None:
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
 
-    print(f"Đã tạo admin: {user.username} ({user.display_name}).")
+    account_type = "quản trị gốc" if user.is_root_admin else "quản trị viên"
+    print(f"Đã tạo {account_type}: {user.username} ({user.display_name}).")
 
 
 if __name__ == "__main__":

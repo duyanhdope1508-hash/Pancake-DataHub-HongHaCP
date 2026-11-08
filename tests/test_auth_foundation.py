@@ -30,6 +30,7 @@ def test_auth_models_have_required_security_fields() -> None:
         "password_hash",
         "must_change_password",
         "role",
+        "is_root_admin",
         "is_active",
         "last_login_at",
     }.issubset(User.__table__.columns.keys())
@@ -113,6 +114,7 @@ def test_create_admin_never_keeps_plaintext_password() -> None:
 
     assert user.username == "admin.main"
     assert user.role == "admin"
+    assert user.is_root_admin is True
     assert user.password_hash != "a secure admin password"
     assert "a secure admin password" not in repr(user)
     session.add.assert_called_once_with(user)
@@ -150,3 +152,5 @@ def test_migration_adds_temporary_password_flag_safely() -> None:
     assert "20261106_018_add_audit_user_agent" in source
     assert "20261106_019_add_usage_quotas" in source
     assert "20261106_020_index_audit_created_at" in source
+    assert "20261108_022_add_root_admin" in source
+    assert "ux_auth_users_single_root_admin" in source

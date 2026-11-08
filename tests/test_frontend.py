@@ -14,8 +14,8 @@ def test_frontend_uses_versioned_assets() -> None:
     html = (FRONTEND / "index.html").read_text(encoding="utf-8")
 
     assert 'href="/assets/favicon.svg?v=1"' in html
-    assert 'href="/assets/styles.css?v=34"' in html
-    assert 'src="/assets/app.js?v=34"' in html
+    assert 'href="/assets/styles.css?v=35"' in html
+    assert 'src="/assets/app.js?v=35"' in html
 
 
 def test_overview_counts_refresh_without_reloading_the_page() -> None:
@@ -94,6 +94,7 @@ def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:
         'id="staffForm"',
         'id="staffDisplayName"',
         'id="staffUsername"',
+        'id="staffRole"',
         'id="staffResetPassword"',
         'id="temporaryCredential"',
         'id="temporaryPassword"',
@@ -107,6 +108,18 @@ def test_admin_can_manage_staff_and_shop_assignments_from_ui() -> None:
     assert "result.temporary_password" in javascript
     assert "navigator.clipboard.writeText" in javascript
     assert "user.role !== \"admin\"" in javascript
+    assert "user.is_root_admin" in javascript
+    assert "user.can_manage" in javascript
+
+
+def test_account_roster_has_an_independent_scroll_area() -> None:
+    css = (FRONTEND / "styles.css").read_text(encoding="utf-8")
+
+    assert ".staff-roster" in css
+    assert "flex-direction: column" in css
+    assert ".staff-list" in css
+    assert "scrollbar-gutter: stable" in css
+    assert "overflow-y: auto" in css
 
 
 def test_users_can_change_temporary_password_before_loading_data() -> None:

@@ -7,6 +7,7 @@ from app.authorization import (
     authorized_shop_ids,
     can_view_revenue,
     require_admin,
+    require_root_admin,
     scoped_shop_filter,
 )
 from app.models import User
@@ -51,6 +52,19 @@ def test_staff_cannot_use_admin_action() -> None:
         require_admin(_user("staff"))
 
     assert exc_info.value.status_code == 403
+
+
+def test_only_root_admin_can_use_root_action() -> None:
+    regular_admin = _user("admin")
+    regular_admin.is_root_admin = False
+    root_admin = _user("admin")
+    root_admin.is_root_admin = True
+
+    with pytest.raises(HTTPException) as exc_info:
+        require_root_admin(regular_admin)
+
+    assert exc_info.value.status_code == 403
+    require_root_admin(root_admin)
 
 
 def test_staff_without_shop_assignments_gets_empty_scope() -> None:

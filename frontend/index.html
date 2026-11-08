@@ -6,8 +6,8 @@
     <meta name="description" content="Cổng tra cứu đơn hàng nội bộ" />
     <title>Hồng Hà Data Hub</title>
     <link rel="icon" href="/assets/favicon.svg?v=1" type="image/svg+xml" />
-    <link rel="stylesheet" href="/assets/styles.css?v=34" />
-    <script src="/assets/app.js?v=34" defer></script>
+    <link rel="stylesheet" href="/assets/styles.css?v=35" />
+    <script src="/assets/app.js?v=35" defer></script>
   </head>
   <body>
     <main id="loginShell" class="login-shell" hidden>
@@ -398,14 +398,14 @@
       <div class="dialog-header">
         <div>
           <p class="section-kicker">Quản trị</p>
-          <h2 id="staffDialogTitle">Tài khoản nhân viên</h2>
+          <h2 id="staffDialogTitle">Quản lý tài khoản</h2>
         </div>
         <button id="closeStaffDialog" class="icon-button" type="button" aria-label="Đóng">×</button>
       </div>
       <div class="staff-dialog-content">
         <section class="staff-editor" aria-labelledby="staffFormTitle">
           <div class="staff-section-heading">
-            <h3 id="staffFormTitle">Thêm nhân viên</h3>
+            <h3 id="staffFormTitle">Thêm tài khoản</h3>
             <button id="cancelStaffEdit" class="text-button" type="button" hidden>Hủy sửa</button>
           </div>
           <form id="staffForm" class="staff-form">
@@ -418,18 +418,26 @@
               <span>Tên đăng nhập</span>
               <input id="staffUsername" type="text" required maxlength="64" autocomplete="off" placeholder="Ví dụ: thu.ha" />
             </label>
+            <label id="staffRoleField" hidden>
+              <span>Loại tài khoản</span>
+              <select id="staffRole">
+                <option value="staff">Nhân viên</option>
+                <option value="admin">Quản trị viên</option>
+              </select>
+              <small>Chỉ quản trị gốc được tạo và quản lý quản trị viên khác.</small>
+            </label>
             <label id="staffResetPasswordField" class="staff-reset-password" hidden>
               <span class="staff-check-row">
                 <input id="staffResetPassword" type="checkbox" />
                 <span>Tạo mật khẩu tạm mới</span>
               </span>
-              <small>Nhân viên sẽ bị đăng xuất và phải đổi mật khẩu ở lần đăng nhập tiếp theo.</small>
+              <small>Tài khoản sẽ bị đăng xuất và phải đổi mật khẩu ở lần đăng nhập tiếp theo.</small>
             </label>
             <label id="staffActiveField" class="staff-active-field" hidden>
               <input id="staffIsActive" type="checkbox" checked />
               <span>Cho phép tài khoản đăng nhập</span>
             </label>
-            <div class="staff-shop-selector">
+            <div id="staffShopSelector" class="staff-shop-selector">
               <div class="shop-selector-heading">
                 <span>Shop được phép xem</span>
                 <div>
@@ -446,12 +454,12 @@
               <span>Mật khẩu: <code id="temporaryPassword"></code></span>
               <button id="copyTemporaryCredential" class="secondary-button" type="button">Sao chép tài khoản và mật khẩu</button>
             </section>
-            <button id="saveStaffButton" class="primary-button staff-save-button" type="submit">Tạo nhân viên</button>
+            <button id="saveStaffButton" class="primary-button staff-save-button" type="submit">Tạo tài khoản</button>
           </form>
         </section>
         <section class="staff-roster" aria-labelledby="staffListTitle">
           <div class="staff-section-heading">
-            <h3 id="staffListTitle">Danh sách nhân viên</h3>
+            <h3 id="staffListTitle">Danh sách tài khoản</h3>
             <span id="staffCount">—</span>
           </div>
           <div id="staffList" class="staff-list"></div>
