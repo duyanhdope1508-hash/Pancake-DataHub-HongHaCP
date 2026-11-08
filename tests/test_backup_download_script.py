@@ -6,7 +6,9 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_windows_backup_downloader_is_safe_and_verifies_checksum() -> None:
     script = (ROOT / "scripts/download-latest-backup.ps1").read_text(encoding="utf-8")
 
-    assert 'BatchMode=yes' in script
+    assert 'BatchMode=no' in script
+    assert 'PreferredAuthentications=publickey' in script
+    assert 'PasswordAuthentication=no' in script
     assert 'ConnectTimeout=15' in script
     assert 'IdentitiesOnly=yes' in script
     assert '$Destination = ""' in script
@@ -17,7 +19,8 @@ def test_windows_backup_downloader_is_safe_and_verifies_checksum() -> None:
     assert "different checksum" in script
     assert "Select-Object -Skip $Keep" in script
     assert "BitLocker" in script
-    assert "password" not in script.lower()
+    assert "Read-Host" not in script
+    assert "ConvertTo-SecureString" not in script
     assert all(ord(character) < 128 for character in script)
 
 

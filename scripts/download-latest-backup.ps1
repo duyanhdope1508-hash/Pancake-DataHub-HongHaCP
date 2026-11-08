@@ -30,7 +30,10 @@ foreach ($command in @("ssh.exe", "scp.exe")) {
 }
 
 $connectionOptions = @(
-    "-o", "BatchMode=yes",
+    "-o", "BatchMode=no",
+    "-o", "PreferredAuthentications=publickey",
+    "-o", "PasswordAuthentication=no",
+    "-o", "KbdInteractiveAuthentication=no",
     "-o", "ConnectTimeout=15",
     "-o", "ServerAliveInterval=15",
     "-o", "ServerAliveCountMax=3"
