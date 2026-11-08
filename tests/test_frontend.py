@@ -273,6 +273,8 @@ def test_frontend_has_search_filters_and_dialog() -> None:
     assert "pageJumpInput.valueAsNumber" in javascript
     assert "status.delivery_status_label" in javascript
     assert "order.delivery_status_label" in javascript
+    assert "Đếm chính xác trên toàn bộ dữ liệu theo bộ lọc" in html
+    assert "chậm phản ánh đơn vừa đồng bộ tối đa 5 phút" in html
     assert "shipping.delivery_status_label" in javascript
     assert 'selection_mode: state.allMatchingSelected ? "filtered" : "selected"' in javascript
     assert 'secureFetch("/api/orders/export"' in javascript
