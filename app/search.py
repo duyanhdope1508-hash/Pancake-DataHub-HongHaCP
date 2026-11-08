@@ -182,6 +182,7 @@ def search_orders(
     page_size: int = 20,
     include_summary: bool = True,
     sort_by: str = "recent",
+    known_summary: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     filter_arguments = {
         "query": query,
@@ -206,13 +207,17 @@ def search_orders(
         include_customer=False,
     )
 
-    summary = (
-        summarize_filtered_orders(session, aggregate_statement)
-        if include_summary
-        else None
-    )
+    summary = None
+    if include_summary:
+        summary = (
+            dict(known_summary)
+            if known_summary is not None
+            else summarize_filtered_orders(session, aggregate_statement)
+        )
     if summary is not None:
         total = summary["total_orders"]
+    elif known_summary is not None:
+        total = known_summary["total_orders"]
     else:
         count_source = aggregate_statement.with_only_columns(
             CoreOrder.shop_id,

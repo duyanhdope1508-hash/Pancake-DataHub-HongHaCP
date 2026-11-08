@@ -2,10 +2,12 @@ import asyncio
 import logging
 import secrets
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
 from functools import lru_cache
 from pathlib import Path
+from threading import Lock
 from time import monotonic
 from typing import Annotated, Literal
 
@@ -90,6 +92,27 @@ frontend_dir = Path(__file__).resolve().parents[1] / "frontend"
 app.mount("/assets", StaticFiles(directory=frontend_dir), name="assets")
 ORDER_FILTER_CACHE_SECONDS = 300
 SYSTEM_STATUS_CACHE_SECONDS = 15
+ORDER_SUMMARY_CACHE_SECONDS = 300
+_order_summary_cache_lock = Lock()
+
+
+@dataclass(frozen=True)
+class OrderSummaryCacheKey:
+    query: str | None
+    shop_ids: tuple[str, ...] | None
+    page_ids: tuple[str, ...] | None
+    statuses: tuple[int, ...] | None
+    business_statuses: tuple[str, ...] | None
+    carrier_names: tuple[str, ...] | None
+    delivery_statuses: tuple[str, ...] | None
+    date_from: datetime | None
+    date_to: datetime | None
+    min_total: Decimal | None
+    max_total: Decimal | None
+    has_tracking: bool | None
+    sent_to_carrier: bool | None
+    returned: bool | None
+    product: str | None
 
 
 class LoginRequest(BaseModel):
@@ -355,6 +378,89 @@ def _cached_database_status(
 ) -> dict:
     del time_bucket
     return database_status(shop_ids)
+
+
+def _tuple_or_none[T](values: list[T] | None) -> tuple[T, ...] | None:
+    return tuple(dict.fromkeys(values)) if values is not None else None
+
+
+def _order_summary_cache_key(
+    *,
+    query: str | None,
+    shop_ids: list[str] | None,
+    page_ids: list[str] | None,
+    statuses: list[int] | None,
+    business_statuses: list[str] | None,
+    carrier_names: list[str] | None,
+    delivery_statuses: list[str] | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+    min_total: Decimal | None,
+    max_total: Decimal | None,
+    has_tracking: bool | None,
+    sent_to_carrier: bool | None,
+    returned: bool | None,
+    product: str | None,
+) -> OrderSummaryCacheKey:
+    return OrderSummaryCacheKey(
+        query=query.strip() if query else None,
+        shop_ids=_tuple_or_none(shop_ids),
+        page_ids=_tuple_or_none(page_ids),
+        statuses=_tuple_or_none(statuses),
+        business_statuses=_tuple_or_none(business_statuses),
+        carrier_names=_tuple_or_none(carrier_names),
+        delivery_statuses=_tuple_or_none(delivery_statuses),
+        date_from=date_from,
+        date_to=date_to,
+        min_total=min_total,
+        max_total=max_total,
+        has_tracking=has_tracking,
+        sent_to_carrier=sent_to_carrier,
+        returned=returned,
+        product=product.strip() if product else None,
+    )
+
+
+@lru_cache(maxsize=512)
+def _cached_order_summary(time_bucket: int, key: OrderSummaryCacheKey) -> dict:
+    del time_bucket
+    with SessionLocal() as session:
+        return summarize_orders(
+            session,
+            query=key.query,
+            shop_id=list(key.shop_ids) if key.shop_ids is not None else None,
+            page_id=list(key.page_ids) if key.page_ids is not None else None,
+            status=list(key.statuses) if key.statuses is not None else None,
+            business_status=(
+                list(key.business_statuses)
+                if key.business_statuses is not None
+                else None
+            ),
+            carrier_name=(
+                list(key.carrier_names) if key.carrier_names is not None else None
+            ),
+            delivery_status=(
+                list(key.delivery_statuses)
+                if key.delivery_statuses is not None
+                else None
+            ),
+            date_from=key.date_from,
+            date_to=key.date_to,
+            min_total=key.min_total,
+            max_total=key.max_total,
+            has_tracking=key.has_tracking,
+            sent_to_carrier=key.sent_to_carrier,
+            returned=key.returned,
+            product=key.product,
+        )
+
+
+def _order_summary(key: OrderSummaryCacheKey) -> dict:
+    time_bucket = int(monotonic() // ORDER_SUMMARY_CACHE_SECONDS)
+    # lru_cache protects its dictionary, but it can still calculate the same missing
+    # key more than once. Serializing cache misses prevents a query stampede.
+    with _order_summary_cache_lock:
+        return dict(_cached_order_summary(time_bucket, key))
 
 
 def _should_disable_browser_cache(path: str) -> bool:
@@ -896,6 +1002,8 @@ async def _run_manual_sync(request: Request, actor_user_id: str) -> None:
         transform_result = result["transform"]
         _cached_order_filters.cache_clear()
         _cached_database_status.cache_clear()
+        with _order_summary_cache_lock:
+            _cached_order_summary.cache_clear()
         _manual_sync_state = {
             "status": "completed",
             "success": sync_result["success"],
@@ -996,6 +1104,26 @@ def orders(
         user = request.state.current_user
         allowed_shop_ids = authorized_shop_ids(session, user)
         effective_shop_ids = scoped_shop_filter(shop_id, allowed_shop_ids)
+    summary = _order_summary(
+        _order_summary_cache_key(
+            query=q,
+            shop_ids=effective_shop_ids,
+            page_ids=page_id,
+            statuses=status,
+            business_statuses=business_status,
+            carrier_names=carrier_name,
+            delivery_statuses=delivery_status,
+            date_from=date_from,
+            date_to=date_to,
+            min_total=min_total,
+            max_total=max_total,
+            has_tracking=has_tracking,
+            sent_to_carrier=sent_to_carrier,
+            returned=returned,
+            product=product,
+        )
+    )
+    with SessionLocal() as session:
         result = search_orders(
             session,
             query=q,
@@ -1017,6 +1145,7 @@ def orders(
             page_size=page_size,
             include_summary=include_summary,
             sort_by=sort_by,
+            known_summary=summary,
         )
         if not can_view_revenue(user) and result["summary"] is not None:
             result["summary"].pop("total_revenue", None)
@@ -1054,15 +1183,15 @@ def order_summary(
         user = request.state.current_user
         allowed_shop_ids = authorized_shop_ids(session, user)
         effective_shop_ids = scoped_shop_filter(shop_id, allowed_shop_ids)
-        result = summarize_orders(
-            session,
+    result = _order_summary(
+        _order_summary_cache_key(
             query=q,
-            shop_id=effective_shop_ids,
-            page_id=page_id,
-            status=status,
-            business_status=business_status,
-            carrier_name=carrier_name,
-            delivery_status=delivery_status,
+            shop_ids=effective_shop_ids,
+            page_ids=page_id,
+            statuses=status,
+            business_statuses=business_status,
+            carrier_names=carrier_name,
+            delivery_statuses=delivery_status,
             date_from=date_from,
             date_to=date_to,
             min_total=min_total,
@@ -1072,9 +1201,10 @@ def order_summary(
             returned=returned,
             product=product,
         )
-        if not can_view_revenue(user):
-            result.pop("total_revenue", None)
-        return result
+    )
+    if not can_view_revenue(user):
+        result.pop("total_revenue", None)
+    return result
 
 
 def _export_orders_response(

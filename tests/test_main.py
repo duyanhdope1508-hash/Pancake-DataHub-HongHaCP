@@ -1,6 +1,6 @@
 import asyncio
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import MagicMock, Mock
 
 import pytest
 from fastapi import HTTPException, Response
@@ -139,6 +139,93 @@ def test_system_status_cache_shares_expensive_counts(monkeypatch) -> None:
     assert first == second == {"core_orders": 10}
     assert scoped == {"core_orders": 10}
     assert calls == [None, ("shop-1",)]
+
+
+def test_order_summary_cache_shares_expensive_aggregate(monkeypatch) -> None:
+    calls: list[dict] = []
+    context = MagicMock()
+    session = object()
+    context.__enter__.return_value = session
+
+    def fake_summary(received_session, **filters):
+        assert received_session is session
+        calls.append(filters)
+        return {"total_orders": 1_500_000, "total_revenue": 100}
+
+    monkeypatch.setattr(main, "SessionLocal", lambda: context)
+    monkeypatch.setattr(main, "summarize_orders", fake_summary)
+    monkeypatch.setattr(main, "monotonic", lambda: 600.0)
+    key = main._order_summary_cache_key(
+        query=None,
+        shop_ids=None,
+        page_ids=None,
+        statuses=None,
+        business_statuses=None,
+        carrier_names=None,
+        delivery_statuses=None,
+        date_from=None,
+        date_to=None,
+        min_total=None,
+        max_total=None,
+        has_tracking=None,
+        sent_to_carrier=None,
+        returned=None,
+        product=None,
+    )
+    main._cached_order_summary.cache_clear()
+    try:
+        first = main._order_summary(key)
+        first.pop("total_revenue")
+        second = main._order_summary(key)
+    finally:
+        main._cached_order_summary.cache_clear()
+
+    assert second == {"total_orders": 1_500_000, "total_revenue": 100}
+    assert calls == [
+        {
+            "query": None,
+            "shop_id": None,
+            "page_id": None,
+            "status": None,
+            "business_status": None,
+            "carrier_name": None,
+            "delivery_status": None,
+            "date_from": None,
+            "date_to": None,
+            "min_total": None,
+            "max_total": None,
+            "has_tracking": None,
+            "sent_to_carrier": None,
+            "returned": None,
+            "product": None,
+        }
+    ]
+
+
+def test_empty_shop_scope_remains_distinct_from_unrestricted_scope() -> None:
+    common = {
+        "query": None,
+        "page_ids": None,
+        "statuses": None,
+        "business_statuses": None,
+        "carrier_names": None,
+        "delivery_statuses": None,
+        "date_from": None,
+        "date_to": None,
+        "min_total": None,
+        "max_total": None,
+        "has_tracking": None,
+        "sent_to_carrier": None,
+        "returned": None,
+        "product": None,
+    }
+
+    unrestricted = main._order_summary_cache_key(shop_ids=None, **common)
+    empty_scope = main._order_summary_cache_key(shop_ids=[], **common)
+
+    assert unrestricted.shop_ids is None
+    assert empty_scope.shop_ids == ()
+    assert unrestricted != empty_scope
 
 
 def test_audit_client_uses_server_observed_ip_and_bounds_user_agent() -> None:

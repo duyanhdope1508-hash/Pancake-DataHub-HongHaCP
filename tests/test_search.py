@@ -1,5 +1,6 @@
 from inspect import signature
 from pathlib import Path
+from unittest.mock import Mock
 
 from app.search import escape_like, filtered_orders_statement, search_orders
 
@@ -21,6 +22,25 @@ def test_empty_shop_scope_does_not_mean_unrestricted_access() -> None:
 def test_search_can_defer_filtered_summary() -> None:
     parameter = signature(search_orders).parameters["include_summary"]
     assert parameter.default is True
+
+
+def test_search_reuses_known_summary_total_without_count_query() -> None:
+    session = Mock()
+    session.execute.side_effect = [
+        Mock(all=Mock(return_value=[])),
+        Mock(all=Mock(return_value=[])),
+    ]
+
+    result = search_orders(
+        session,
+        include_summary=False,
+        known_summary={"total_orders": 42},
+    )
+
+    assert result["summary"] is None
+    assert result["pagination"]["total_items"] == 42
+    assert result["pagination"]["total_pages"] == 3
+    session.scalar.assert_not_called()
 
 
 def test_search_supports_explicit_order_selection() -> None:
