@@ -91,7 +91,25 @@ def test_backup_timer_is_daily_persistent_and_runs_as_deploy_user() -> None:
 
     assert "OnCalendar=*-*-* 02:30:00" in installer
     assert "Persistent=true" in installer
-    assert "BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}" in installer
+    assert "BACKUP_RETENTION_COUNT=${BACKUP_RETENTION_COUNT:-3}" in installer
+    assert "BACKUP_MIN_FREE_GB=${BACKUP_MIN_FREE_GB:-8}" in installer
     assert "User=$BACKUP_USER" in installer
     assert "ExecStart=$PROJECT_DIR/scripts/backup-postgres.sh" in installer
+    assert "TimeoutStartSec=3h" in installer
+    assert "IOSchedulingPriority=7" in installer
+
+
+def test_backup_is_space_guarded_locked_and_count_retained() -> None:
+    backup_script = (ROOT / "scripts/backup-postgres.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "BACKUP_RETENTION_COUNT=${BACKUP_RETENTION_COUNT:-3}" in backup_script
+    assert "BACKUP_MIN_FREE_GB=${BACKUP_MIN_FREE_GB:-8}" in backup_script
+    assert "flock -n 9" in backup_script
+    assert "available_kb=$(df -Pk" in backup_script
+    assert "app.notify_backup" in backup_script
+    assert "pg_restore --list" in backup_script
+    assert "sha256sum" in backup_script
+    assert "NR > keep" in backup_script
 

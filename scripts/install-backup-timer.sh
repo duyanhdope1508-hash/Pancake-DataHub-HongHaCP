@@ -10,7 +10,8 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 PROJECT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 BACKUP_USER=${BACKUP_USER:-${SUDO_USER:-deploy}}
 BACKUP_GROUP=${BACKUP_GROUP:-$BACKUP_USER}
-BACKUP_RETENTION_DAYS=${BACKUP_RETENTION_DAYS:-30}
+BACKUP_RETENTION_COUNT=${BACKUP_RETENTION_COUNT:-3}
+BACKUP_MIN_FREE_GB=${BACKUP_MIN_FREE_GB:-8}
 SERVICE_NAME=pancake-data-hub-backup
 SERVICE_FILE=/etc/systemd/system/$SERVICE_NAME.service
 TIMER_FILE=/etc/systemd/system/$SERVICE_NAME.timer
@@ -29,12 +30,19 @@ case "$BACKUP_GROUP" in
     ;;
 esac
 
-case "$BACKUP_RETENTION_DAYS" in
-  ''|*[!0-9]*)
-    echo "BACKUP_RETENTION_DAYS must be a non-negative integer." >&2
+for value_name in BACKUP_RETENTION_COUNT BACKUP_MIN_FREE_GB; do
+  eval "value=\${$value_name}"
+  case "$value" in
+    ''|*[!0-9]*)
+      echo "$value_name must be a positive integer." >&2
+      exit 2
+      ;;
+  esac
+  if [ "$value" -lt 1 ]; then
+    echo "$value_name must be at least 1." >&2
     exit 2
-    ;;
-esac
+  fi
+done
 
 if ! id "$BACKUP_USER" >/dev/null 2>&1; then
   echo "Backup user does not exist: $BACKUP_USER" >&2
@@ -66,8 +74,13 @@ Type=oneshot
 User=$BACKUP_USER
 Group=$BACKUP_GROUP
 WorkingDirectory=$PROJECT_DIR
-Environment=BACKUP_RETENTION_DAYS=$BACKUP_RETENTION_DAYS
+Environment=BACKUP_RETENTION_COUNT=$BACKUP_RETENTION_COUNT
+Environment=BACKUP_MIN_FREE_GB=$BACKUP_MIN_FREE_GB
 ExecStart=$PROJECT_DIR/scripts/backup-postgres.sh
+TimeoutStartSec=3h
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
