@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from sqlalchemy import and_, delete, or_, select, tuple_
+from sqlalchemy import and_, delete, func, or_, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -106,12 +106,22 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
 
     with SessionLocal() as session:
         if full:
+            compacted_orders = session.scalar(
+                select(func.count()).select_from(RawOrder).where(
+                    RawOrder.payload.is_(None)
+                )
+            )
+            if compacted_orders:
+                raise RuntimeError(
+                    "Full raw rebuild is unavailable after payload compaction; "
+                    "restore a pre-compaction backup or run a Pancake backfill first."
+                )
             session.execute(delete(CoreOrderItem))
         last_shop_id: str | None = None
         last_order_id: str | None = None
 
         while True:
-            statement = select(RawOrder)
+            statement = select(RawOrder).where(RawOrder.payload.is_not(None))
             if not full:
                 statement = statement.outerjoin(
                     CoreOrder,
@@ -149,6 +159,8 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
 
             for raw_order in raw_orders:
                 payload = raw_order.payload
+                if payload is None:  # Defensive guard for static type checkers.
+                    continue
                 customer = (
                     payload.get("customer")
                     if isinstance(payload.get("customer"), dict)
@@ -329,6 +341,19 @@ def transform_raw_orders(*, full: bool = False) -> dict[str, int | str]:
                 )
             if item_batch:
                 session.execute(insert(CoreOrderItem).values(item_batch))
+
+            order_keys = [
+                (raw_order.shop_id, raw_order.source_order_id)
+                for raw_order in raw_orders
+            ]
+            session.execute(
+                update(RawOrder)
+                .where(
+                    tuple_(RawOrder.shop_id, RawOrder.source_order_id).in_(order_keys),
+                    RawOrder.payload_hash.is_not(None),
+                )
+                .values(payload=None, compacted_at=transformed_at)
+            )
 
             last_order = raw_orders[-1]
             last_shop_id = last_order.shop_id

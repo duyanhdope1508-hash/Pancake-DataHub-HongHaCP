@@ -65,3 +65,11 @@ def test_transform_supports_explicit_full_rebuild() -> None:
     assert parameter.default is False
     assert parameter.kind.name == "KEYWORD_ONLY"
 
+
+def test_transform_compacts_only_fingerprinted_payloads() -> None:
+    source = __import__("pathlib").Path("app/transform.py").read_text(encoding="utf-8")
+
+    assert "RawOrder.payload.is_not(None)" in source
+    assert "RawOrder.payload_hash.is_not(None)" in source
+    assert ".values(payload=None, compacted_at=transformed_at)" in source
+

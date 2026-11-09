@@ -171,3 +171,21 @@ def test_storage_audit_is_read_only_and_bounded() -> None:
     ):
         assert destructive_statement not in audit.upper()
 
+
+def test_raw_compaction_is_guarded_and_uses_atomic_shadow_table() -> None:
+    runner = (ROOT / "scripts/compact-raw-orders.sh").read_text(encoding="utf-8")
+    sql = (ROOT / "scripts/compact-raw-orders.sql").read_text(encoding="utf-8")
+
+    assert 'RAW_COMPACTION_CONFIRM:-' in runner
+    assert '!= "COMPACT_RAW"' in runner
+    assert "RAW_COMPACTION_MIN_FREE_GB" in runner
+    assert 'exec 8>"$PROJECT_DIR/backups/.backup.lock"' in runner
+    assert "compose stop --timeout 120 worker" in runner
+    assert "trap restart_worker EXIT INT TERM" in runner
+    assert "pg_advisory_lock(1735531090)" in sql
+    assert "missing_count <> 0 OR pending_count <> 0" in sql
+    assert "raw_pancake_orders_compacting" in sql
+    assert "source_count <> compact_count" in sql
+    assert "LOCK TABLE raw_pancake_orders IN ACCESS EXCLUSIVE MODE" in sql
+    assert "DROP TABLE raw_pancake_orders_pre_compaction" in sql
+

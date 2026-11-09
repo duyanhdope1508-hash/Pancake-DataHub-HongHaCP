@@ -2,8 +2,8 @@ import asyncio
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import or_, select
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy import Text, cast, func, literal, or_, select
+from sqlalchemy.dialects.postgresql import JSONB, insert
 
 from app.config import Settings
 from app.connectors import PancakeConnector, load_connectors
@@ -103,21 +103,29 @@ def _raw_order_upsert(
     order: dict[str, Any],
     source_updated_at: str | None,
 ):
+    # PostgreSQL normalizes both values as JSONB before hashing. The one-time
+    # compactor uses the same representation, so unchanged orders no longer
+    # need their multi-kilobyte source payload retained forever.
+    payload_hash = func.md5(cast(literal(order, type_=JSONB), Text))
     statement = insert(RawOrder).values(
         shop_id=shop_id,
         source_order_id=order_id,
         payload=order,
+        payload_hash=payload_hash,
         source_updated_at=source_updated_at,
+        compacted_at=None,
     )
     return statement.on_conflict_do_update(
         index_elements=[RawOrder.shop_id, RawOrder.source_order_id],
         set_={
             "payload": statement.excluded.payload,
+            "payload_hash": statement.excluded.payload_hash,
             "source_updated_at": statement.excluded.source_updated_at,
             "ingested_at": datetime.now(UTC),
+            "compacted_at": None,
         },
         where=or_(
-            RawOrder.payload.is_distinct_from(statement.excluded.payload),
+            RawOrder.payload_hash.is_distinct_from(statement.excluded.payload_hash),
             RawOrder.source_updated_at.is_distinct_from(
                 statement.excluded.source_updated_at
             ),

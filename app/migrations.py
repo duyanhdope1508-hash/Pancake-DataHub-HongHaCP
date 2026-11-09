@@ -610,6 +610,20 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261109_023_add_raw_payload_fingerprint",
+        (
+            "ALTER TABLE raw_pancake_orders ALTER COLUMN payload DROP NOT NULL",
+            (
+                "ALTER TABLE raw_pancake_orders ADD COLUMN IF NOT EXISTS "
+                "payload_hash VARCHAR(32)"
+            ),
+            (
+                "ALTER TABLE raw_pancake_orders ADD COLUMN IF NOT EXISTS "
+                "compacted_at TIMESTAMPTZ"
+            ),
+        ),
+    ),
 )
 
 
