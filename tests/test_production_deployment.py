@@ -181,11 +181,23 @@ def test_raw_compaction_is_guarded_and_uses_atomic_shadow_table() -> None:
     assert "RAW_COMPACTION_MIN_FREE_GB" in runner
     assert 'exec 8>"$PROJECT_DIR/backups/.backup.lock"' in runner
     assert "compose stop --timeout 120 worker" in runner
-    assert "trap restart_worker EXIT INT TERM" in runner
+    assert "trap restart_worker EXIT" in runner
     assert "pg_advisory_lock(1735531090)" in sql
     assert "missing_count <> 0 OR pending_count <> 0" in sql
     assert "raw_pancake_orders_compacting" in sql
     assert "source_count <> compact_count" in sql
     assert "LOCK TABLE raw_pancake_orders IN ACCESS EXCLUSIVE MODE" in sql
     assert "DROP TABLE raw_pancake_orders_pre_compaction" in sql
+
+
+def test_manual_sync_is_queued_for_worker_instead_of_running_inside_api() -> None:
+    main_source = (ROOT / "app/main.py").read_text(encoding="utf-8")
+    worker_source = (ROOT / "app/worker.py").read_text(encoding="utf-8")
+
+    assert "SyncRequest(requested_by_user_id=actor.id" in main_source
+    assert "from app.worker import run_cycle" not in main_source
+    assert "asyncio.create_task(_run_manual_sync" not in main_source
+    assert "MANUAL_SYNC_POLL_SECONDS = 5" in worker_source
+    assert "claim_sync_request()" in worker_source
+    assert "recover_interrupted_sync_requests()" in worker_source
 

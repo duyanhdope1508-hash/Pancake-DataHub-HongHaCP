@@ -1,4 +1,3 @@
-import asyncio
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
@@ -282,74 +281,61 @@ def test_staff_detail_quota_has_no_five_minute_burst_limit() -> None:
     ]
 
 
-@pytest.mark.asyncio
-async def test_manual_sync_starts_background_job_and_returns_immediately(monkeypatch) -> None:
-    async def fake_run_cycle(_settings) -> dict:
-        return {
-            "status": "completed",
-            "sync": {
-                "success": True,
-                "shops_processed": 26,
-                "connectors_failed": 0,
-                "rows_seen": 100,
-                "rows_written": 100,
-            },
-            "transform": {"orders_transformed": 4},
-        }
+def test_manual_sync_enqueues_durable_worker_request(monkeypatch) -> None:
+    queued = []
 
-    monkeypatch.setattr(main, "run_cycle", fake_run_cycle)
-    monkeypatch.setattr(main, "_manual_sync_task", None)
-    monkeypatch.setattr(main, "_manual_sync_state", {"status": "idle"})
+    class FakeSession:
+        def __enter__(self):
+            return self
 
-    result = await main.sync_now(_request_for("admin"))
+        def __exit__(self, *_args):
+            return False
+
+        def add(self, value):
+            value.created_at = main.datetime.now(main.UTC)
+            queued.append(value)
+
+        def commit(self):
+            return None
+
+        def refresh(self, _value):
+            return None
+
+    monkeypatch.setattr(main, "SessionLocal", FakeSession)
+    result = main.sync_now(_request_for("admin"))
 
     assert result["status"] == "started"
-    assert "started_at" in result
-    assert main._manual_sync_task is not None
-    await main._manual_sync_task
-
-    assert main.manual_sync_status(_request_for("admin")) == {
-        "status": "completed",
-        "success": True,
-        "shops_processed": 26,
-        "connectors_failed": 0,
-        "rows_seen": 100,
-        "rows_written": 100,
-        "orders_transformed": 4,
-        "finished_at": main._manual_sync_state["finished_at"],
-    }
+    assert result["request_id"] == queued[0].id
+    assert queued[0].requested_by_user_id == "admin-1"
+    assert queued[0].status == "queued"
 
 
-@pytest.mark.asyncio
-async def test_manual_sync_rejects_overlapping_cycle(monkeypatch) -> None:
-    blocker = asyncio.Event()
+def test_manual_sync_rejects_overlapping_queue(monkeypatch) -> None:
+    class FailingSession:
+        def __enter__(self):
+            return self
 
-    async def running_job() -> None:
-        await blocker.wait()
+        def __exit__(self, *_args):
+            return False
 
-    active_task = asyncio.create_task(running_job())
-    monkeypatch.setattr(main, "_manual_sync_task", active_task)
+        def add(self, _value):
+            return None
 
-    try:
-        with pytest.raises(HTTPException) as exc_info:
-            await main.sync_now(_request_for("admin"))
+        def commit(self):
+            raise main.IntegrityError("insert", {}, Exception("duplicate"))
 
-        assert exc_info.value.status_code == 409
-    finally:
-        blocker.set()
-        await active_task
-
-
-@pytest.mark.asyncio
-async def test_manual_sync_is_admin_only(monkeypatch) -> None:
-    mocked_run_cycle = Mock()
-    monkeypatch.setattr(main, "run_cycle", mocked_run_cycle)
-
+    monkeypatch.setattr(main, "SessionLocal", FailingSession)
     with pytest.raises(HTTPException) as exc_info:
-        await main.sync_now(_request_for("staff"))
+        main.sync_now(_request_for("admin"))
+
+    assert exc_info.value.status_code == 409
+
+
+def test_manual_sync_is_admin_only() -> None:
+    with pytest.raises(HTTPException) as exc_info:
+        main.sync_now(_request_for("staff"))
 
     assert exc_info.value.status_code == 403
-    mocked_run_cycle.assert_not_called()
 
 
 def test_manual_sync_status_is_admin_only() -> None:

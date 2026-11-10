@@ -15,7 +15,7 @@ def test_frontend_uses_versioned_assets() -> None:
 
     assert 'href="/assets/favicon.svg?v=1"' in html
     assert 'href="/assets/styles.css?v=36"' in html
-    assert 'src="/assets/app.js?v=36"' in html
+    assert 'src="/assets/app.js?v=37"' in html
 
 
 def test_overview_counts_refresh_without_reloading_the_page() -> None:

@@ -1391,8 +1391,13 @@ async function syncNow() {
     if (result.success) {
       elements.syncNow.textContent = `Xong · ${shopCount} shop, ${orderCount} đơn cập nhật`;
     } else {
+      const failedConnectors = (result.connector_errors || [])
+        .map((item) => item.connector)
+        .filter(Boolean)
+        .join(", ");
+      const failureSuffix = failedConnectors ? `: ${failedConnectors}` : ".";
       showError(
-        `Đã đồng bộ nhưng có ${integerFormatter.format(result.connectors_failed)} kết nối lỗi.`,
+        `Đã đồng bộ nhưng có ${integerFormatter.format(result.connectors_failed)} kết nối lỗi${failureSuffix}`,
       );
       elements.syncNow.textContent = "Hoàn tất, có lỗi";
     }

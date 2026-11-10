@@ -624,6 +624,40 @@ MIGRATIONS: Sequence[tuple[str, Sequence[str]]] = (
             ),
         ),
     ),
+    (
+        "20261110_024_add_durable_sync_requests",
+        (
+            """
+            CREATE TABLE IF NOT EXISTS sync_requests (
+                id VARCHAR(36) PRIMARY KEY,
+                requested_by_user_id VARCHAR(36),
+                status VARCHAR(32) NOT NULL DEFAULT 'queued',
+                result_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+                error TEXT,
+                created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+                started_at TIMESTAMPTZ,
+                finished_at TIMESTAMPTZ,
+                CONSTRAINT fk_sync_requests_user
+                    FOREIGN KEY (requested_by_user_id)
+                    REFERENCES auth_users(id)
+                    ON DELETE SET NULL,
+                CONSTRAINT ck_sync_requests_status
+                    CHECK (status IN (
+                        'queued', 'running', 'completed', 'failed', 'skipped'
+                    ))
+            )
+            """,
+            (
+                "CREATE UNIQUE INDEX IF NOT EXISTS ux_sync_requests_single_active "
+                "ON sync_requests ((TRUE)) "
+                "WHERE status IN ('queued', 'running')"
+            ),
+            (
+                "CREATE INDEX IF NOT EXISTS ix_sync_requests_created "
+                "ON sync_requests (created_at)"
+            ),
+        ),
+    ),
 )
 
 

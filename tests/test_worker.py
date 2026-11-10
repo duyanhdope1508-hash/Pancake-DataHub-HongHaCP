@@ -122,6 +122,9 @@ def test_sync_failure_message_contains_counts_without_secrets() -> None:
                 "success": False,
                 "connectors_failed": 2,
                 "shops_processed": 29,
+                "errors": [
+                    {"connector": "shop-715173157", "error": "No shops found"}
+                ],
             },
         },
         Settings(_env_file=None, pancake_sync_interval_seconds=43_200),
@@ -129,4 +132,5 @@ def test_sync_failure_message_contains_counts_without_secrets() -> None:
 
     assert "Kết nối lỗi: 2" in message
     assert "Shop đã xử lý: 29" in message
+    assert "shop-715173157" in message
     assert "12 giờ" in message

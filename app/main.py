@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import secrets
 from contextlib import asynccontextmanager
@@ -16,6 +15,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from starlette.background import BackgroundTask
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -46,7 +46,7 @@ from app.authorization import (
 )
 from app.config import get_settings
 from app.db import SessionLocal, init_db
-from app.models import AuditLog, User
+from app.models import AuditLog, SyncRequest, User
 from app.order_detail import AmbiguousOrderError, OrderNotFoundError, get_order_detail
 from app.order_export import ExportLimitExceeded, export_limit_for_role, export_orders_xlsx
 from app.order_filters import order_filters
@@ -62,11 +62,8 @@ from app.user_management import (
     management_snapshot,
     update_managed_user,
 )
-from app.worker import run_cycle
 
 logger = logging.getLogger(__name__)
-_manual_sync_task: asyncio.Task[None] | None = None
-_manual_sync_state: dict = {"status": "idle"}
 
 
 @asynccontextmanager
@@ -977,102 +974,97 @@ def system_status(request: Request) -> dict:
     return _cached_database_status(time_bucket, shop_ids)
 
 
-async def _run_manual_sync(request: Request, actor_user_id: str) -> None:
-    global _manual_sync_state
-    try:
-        result = await run_cycle(get_settings())
-        finished_at = datetime.now(UTC).isoformat()
-        if result["status"] == "skipped":
-            _manual_sync_state = {
-                "status": "skipped",
-                "reason": result.get("reason", "unknown"),
-                "finished_at": finished_at,
-            }
-            _record_audit(
-                request=request,
-                actor_user_id=actor_user_id,
-                action="orders.sync",
-                resource_type="sync",
-                result="skipped",
-                metadata={"reason": result.get("reason", "unknown")},
-            )
-            return
-
-        sync_result = result["sync"]
-        transform_result = result["transform"]
-        _cached_order_filters.cache_clear()
-        _cached_database_status.cache_clear()
-        with _order_summary_cache_lock:
-            _cached_order_summary.cache_clear()
-        _manual_sync_state = {
-            "status": "completed",
-            "success": sync_result["success"],
-            "shops_processed": sync_result["shops_processed"],
-            "connectors_failed": sync_result["connectors_failed"],
-            "rows_seen": sync_result["rows_seen"],
-            "rows_written": sync_result["rows_written"],
-            "orders_transformed": transform_result["orders_transformed"],
-            "finished_at": finished_at,
-        }
-        _record_audit(
-            request=request,
-            actor_user_id=actor_user_id,
-            action="orders.sync",
-            resource_type="sync",
-            result="success" if sync_result["success"] else "partial",
-            metadata={
-                "shops_processed": sync_result["shops_processed"],
-                "connectors_failed": sync_result["connectors_failed"],
-                "rows_written": sync_result["rows_written"],
-                "orders_transformed": transform_result["orders_transformed"],
-            },
-        )
-    except Exception as exc:
-        logger.exception("Manual sync failed")
-        _manual_sync_state = {
-            "status": "failed",
-            "detail": "Đồng bộ nền gặp lỗi. Hãy kiểm tra nhật ký hệ thống.",
-            "finished_at": datetime.now(UTC).isoformat(),
-        }
-        _record_audit(
-            request=request,
-            actor_user_id=actor_user_id,
-            action="orders.sync",
-            resource_type="sync",
-            result="failed",
-            metadata={"error_type": type(exc).__name__},
-        )
-
-
 @app.post("/api/sync", status_code=202)
-async def sync_now(request: Request) -> dict:
-    global _manual_sync_state, _manual_sync_task
+def sync_now(request: Request) -> dict:
     actor = request.state.current_user
     require_admin(actor)
-    if _manual_sync_task is not None and not _manual_sync_task.done():
+    sync_request = SyncRequest(requested_by_user_id=actor.id, status="queued")
+    try:
+        with SessionLocal() as session:
+            session.add(sync_request)
+            session.commit()
+            session.refresh(sync_request)
+    except IntegrityError as exc:
         raise HTTPException(
             status_code=409,
-            detail="Đang có một lượt đồng bộ thủ công chạy. Hãy chờ lượt đó hoàn tất.",
-        )
-
-    started_at = datetime.now(UTC).isoformat()
-    _manual_sync_state = {"status": "running", "started_at": started_at}
+            detail="Đang có một lượt đồng bộ trong hàng đợi hoặc đang chạy.",
+        ) from exc
     _record_audit(
         request=request,
         actor_user_id=actor.id,
         action="orders.sync",
         resource_type="sync",
+        resource_id=sync_request.id,
         result="started",
-        metadata={},
+        metadata={"execution": "worker_queue"},
     )
-    _manual_sync_task = asyncio.create_task(_run_manual_sync(request, actor.id))
-    return {"status": "started", "started_at": started_at}
+    return {
+        "status": "started",
+        "request_id": sync_request.id,
+        "started_at": sync_request.created_at.isoformat(),
+    }
 
 
 @app.get("/api/sync/status")
 def manual_sync_status(request: Request) -> dict:
     require_admin(request.state.current_user)
-    return dict(_manual_sync_state)
+    with SessionLocal() as session:
+        sync_request = session.scalar(
+            select(SyncRequest).order_by(SyncRequest.created_at.desc()).limit(1)
+        )
+    if sync_request is None:
+        return {"status": "idle"}
+    if sync_request.status in {"queued", "running"}:
+        return {
+            "status": "running",
+            "phase": sync_request.status,
+            "request_id": sync_request.id,
+            "started_at": (
+                sync_request.started_at or sync_request.created_at
+            ).isoformat(),
+        }
+    if sync_request.status == "failed":
+        return {
+            "status": "failed",
+            "request_id": sync_request.id,
+            "detail": "Worker đồng bộ gặp lỗi. Hãy kiểm tra nhật ký hệ thống.",
+            "finished_at": sync_request.finished_at.isoformat()
+            if sync_request.finished_at
+            else None,
+        }
+    if sync_request.status == "skipped":
+        return {
+            "status": "skipped",
+            "request_id": sync_request.id,
+            "reason": sync_request.result_json.get("reason", "unknown"),
+            "finished_at": sync_request.finished_at.isoformat()
+            if sync_request.finished_at
+            else None,
+        }
+
+    result = sync_request.result_json
+    sync_result = result.get("sync") if isinstance(result.get("sync"), dict) else {}
+    transform_result = (
+        result.get("transform") if isinstance(result.get("transform"), dict) else {}
+    )
+    _cached_order_filters.cache_clear()
+    _cached_database_status.cache_clear()
+    with _order_summary_cache_lock:
+        _cached_order_summary.cache_clear()
+    return {
+        "status": "completed",
+        "request_id": sync_request.id,
+        "success": sync_result.get("success") is True,
+        "shops_processed": int(sync_result.get("shops_processed") or 0),
+        "connectors_failed": int(sync_result.get("connectors_failed") or 0),
+        "connector_errors": sync_result.get("errors") or [],
+        "rows_seen": int(sync_result.get("rows_seen") or 0),
+        "rows_written": int(sync_result.get("rows_written") or 0),
+        "orders_transformed": int(transform_result.get("orders_transformed") or 0),
+        "finished_at": sync_request.finished_at.isoformat()
+        if sync_request.finished_at
+        else None,
+    }
 
 
 @app.get("/api/orders")
