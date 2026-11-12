@@ -201,3 +201,14 @@ def test_manual_sync_is_queued_for_worker_instead_of_running_inside_api() -> Non
     assert "claim_sync_request()" in worker_source
     assert "recover_interrupted_sync_requests()" in worker_source
 
+
+def test_large_exports_use_disk_backed_private_storage() -> None:
+    compose = (ROOT / "compose.production.yaml").read_text(encoding="utf-8")
+    export_source = (ROOT / "app/order_export.py").read_text(encoding="utf-8")
+
+    assert "EXPORT_TEMP_DIR: /app/export-tmp" in compose
+    assert "./export-tmp:/app/export-tmp:rw" in compose
+    assert '"tmpdir": str(export_dir)' in export_source
+    assert "constant_memory" in export_source
+    assert "cleanup_export_artifact" in export_source
+

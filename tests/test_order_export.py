@@ -2,7 +2,12 @@ from datetime import UTC, datetime
 
 import pytest
 
-from app.order_export import ExportLimitExceeded, _excel_datetime, export_limit_for_role
+from app.order_export import (
+    ExportLimitExceeded,
+    _excel_datetime,
+    cleanup_export_artifact,
+    export_limit_for_role,
+)
 
 
 def test_export_limit_error_preserves_counts() -> None:
@@ -28,3 +33,16 @@ def test_excel_datetime_keeps_missing_value() -> None:
 
 def test_xlsxwriter_dependency_is_available() -> None:
     pytest.importorskip("xlsxwriter")
+
+
+def test_export_artifact_cleanup_removes_its_private_directory(tmp_path) -> None:
+    export_dir = tmp_path / "pancake-export-test"
+    export_dir.mkdir()
+    output = export_dir / "orders.xlsx"
+    temporary_part = export_dir / "worksheet.xml"
+    output.write_bytes(b"xlsx")
+    temporary_part.write_bytes(b"xml")
+
+    cleanup_export_artifact(output)
+
+    assert not export_dir.exists()

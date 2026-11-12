@@ -30,6 +30,7 @@ def test_sync_defaults_to_one_page() -> None:
     assert settings.staff_order_details_per_hour == 120
     assert settings.staff_exports_per_hour == 5
     assert settings.staff_export_rows_per_day == 2_000
+    assert settings.export_temp_dir.is_absolute()
     assert settings.audit_detail_dedup_seconds == 600
     assert settings.audit_detail_retention_days == 90
     assert settings.audit_general_retention_days == 365

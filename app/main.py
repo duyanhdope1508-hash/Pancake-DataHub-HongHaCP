@@ -48,7 +48,13 @@ from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.models import AuditLog, SyncRequest, User
 from app.order_detail import AmbiguousOrderError, OrderNotFoundError, get_order_detail
-from app.order_export import ExportLimitExceeded, export_limit_for_role, export_orders_xlsx
+from app.order_export import (
+    ExportLimitExceeded,
+    ExportStorageError,
+    cleanup_export_artifact,
+    export_limit_for_role,
+    export_orders_xlsx,
+)
 from app.order_filters import order_filters
 from app.search import search_orders, summarize_orders
 from app.status import database_status
@@ -1237,6 +1243,7 @@ def _export_orders_response(
                 trace_id=trace_id,
                 exported_by=f"@{actor.username}",
                 exported_ip=ip_address,
+                temp_dir=settings.export_temp_dir,
             )
         except ExportLimitExceeded as exc:
             raise HTTPException(
@@ -1244,6 +1251,14 @@ def _export_orders_response(
                 detail=(
                     f"Có {exc.total_orders:,} đơn. Hãy thu hẹp bộ lọc còn tối đa "
                     f"{exc.max_orders:,} đơn trước khi xuất Excel."
+                ),
+            ) from exc
+        except ExportStorageError as exc:
+            raise HTTPException(
+                status_code=507,
+                detail=(
+                    "Máy chủ không đủ vùng tạm để tạo file Excel. "
+                    "Hãy thử lại sau hoặc thu hẹp bộ lọc."
                 ),
             ) from exc
         if actor.role == "staff":
@@ -1266,7 +1281,7 @@ def _export_orders_response(
                 )
             session.commit()
             if not hourly_decision.allowed:
-                output_path.unlink(missing_ok=True)
+                cleanup_export_artifact(output_path)
                 _record_quota_denial(
                     request,
                     actor=actor,
@@ -1300,7 +1315,7 @@ def _export_orders_response(
                 )
             session.commit()
             if not daily_decision.allowed:
-                output_path.unlink(missing_ok=True)
+                cleanup_export_artifact(output_path)
                 _record_quota_denial(
                     request,
                     actor=actor,
@@ -1335,7 +1350,7 @@ def _export_orders_response(
         media_type=(
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         ),
-        background=BackgroundTask(output_path.unlink, missing_ok=True),
+        background=BackgroundTask(cleanup_export_artifact, output_path),
     )
 
 

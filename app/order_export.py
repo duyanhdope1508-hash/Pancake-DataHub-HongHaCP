@@ -1,5 +1,7 @@
 import os
+import shutil
 import tempfile
+import time
 from datetime import datetime
 from decimal import Decimal
 from pathlib import Path
@@ -18,6 +20,7 @@ from app.search import filtered_orders_statement
 EXPORT_MAX_ORDERS = 100_000
 STAFF_EXPORT_MAX_ORDERS = 500
 LOCAL_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
+EXPORT_TEMP_RETENTION_SECONDS = 86_400
 
 
 class ExportLimitExceeded(ValueError):
@@ -27,6 +30,28 @@ class ExportLimitExceeded(ValueError):
         super().__init__(
             f"Export contains {total_orders} orders; maximum is {max_orders}"
         )
+
+
+class ExportStorageError(RuntimeError):
+    pass
+
+
+def _cleanup_stale_export_directories(base_dir: Path) -> None:
+    cutoff = time.time() - EXPORT_TEMP_RETENTION_SECONDS
+    for path in base_dir.glob("pancake-export-*"):
+        try:
+            if path.is_dir() and path.stat().st_mtime < cutoff:
+                shutil.rmtree(path)
+        except OSError:
+            continue
+
+
+def cleanup_export_artifact(output_path: Path) -> None:
+    export_dir = output_path.parent
+    if export_dir.name.startswith("pancake-export-"):
+        shutil.rmtree(export_dir, ignore_errors=True)
+    else:
+        output_path.unlink(missing_ok=True)
 
 
 def export_limit_for_role(role: str) -> int:
@@ -71,6 +96,7 @@ def export_orders_xlsx(
     trace_id: str | None = None,
     exported_by: str | None = None,
     exported_ip: str | None = None,
+    temp_dir: Path | None = None,
 ) -> tuple[Path, int]:
     statement = filtered_orders_statement(
         query=query,
@@ -100,9 +126,18 @@ def export_orders_xlsx(
         raise ExportLimitExceeded(total_orders, max_orders)
 
     shop_names = dict(session.execute(select(Shop.id, Shop.name)).all())
-    file_descriptor, temporary_name = tempfile.mkstemp(
-        prefix="pancake-orders-", suffix=".xlsx"
-    )
+    export_base_dir = Path(temp_dir or tempfile.gettempdir())
+    try:
+        export_base_dir.mkdir(parents=True, exist_ok=True)
+        _cleanup_stale_export_directories(export_base_dir)
+        export_dir = Path(
+            tempfile.mkdtemp(prefix="pancake-export-", dir=export_base_dir)
+        )
+        file_descriptor, temporary_name = tempfile.mkstemp(
+            prefix="pancake-orders-", suffix=".xlsx", dir=export_dir
+        )
+    except OSError as exc:
+        raise ExportStorageError("Could not prepare temporary export storage") from exc
     os.close(file_descriptor)
     output_path = Path(temporary_name)
 
@@ -113,6 +148,7 @@ def export_orders_xlsx(
                 "constant_memory": True,
                 "strings_to_formulas": False,
                 "strings_to_urls": False,
+                "tmpdir": str(export_dir),
             },
         )
         workbook.set_properties(
@@ -261,8 +297,16 @@ def export_orders_xlsx(
         last_data_row = max(excel_row - 1, 3)
         worksheet.autofilter(3, 0, last_data_row, last_column)
         workbook.close()
+    except OSError as exc:
+        cleanup_export_artifact(output_path)
+        if exc.errno == 28:
+            raise ExportStorageError("Not enough temporary export storage") from exc
+        raise
+    except xlsxwriter.exceptions.FileCreateError as exc:
+        cleanup_export_artifact(output_path)
+        raise ExportStorageError("Could not write temporary export files") from exc
     except Exception:
-        output_path.unlink(missing_ok=True)
+        cleanup_export_artifact(output_path)
         raise
 
     return output_path, total_orders

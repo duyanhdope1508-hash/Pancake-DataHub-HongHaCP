@@ -1,6 +1,7 @@
 .env
 .env.production
 backups/
+export-tmp/
 secrets/*.json
 secrets/*.tmp
 secrets/cloudflare_tunnel_token

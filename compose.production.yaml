@@ -76,8 +76,10 @@ services:
       AUDIT_DETAIL_RETENTION_DAYS: ${AUDIT_DETAIL_RETENTION_DAYS:-90}
       AUDIT_GENERAL_RETENTION_DAYS: ${AUDIT_GENERAL_RETENTION_DAYS:-365}
       AUDIT_CLEANUP_INTERVAL_SECONDS: ${AUDIT_CLEANUP_INTERVAL_SECONDS:-86400}
+      EXPORT_TEMP_DIR: /app/export-tmp
     volumes:
       - ./secrets:/app/secrets:ro
+      - ./export-tmp:/app/export-tmp:rw
     tmpfs:
       - /tmp:size=128m,mode=1777
     networks:

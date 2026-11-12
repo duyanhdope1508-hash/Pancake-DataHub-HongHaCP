@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from tempfile import gettempdir
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -43,6 +44,7 @@ class Settings(BaseSettings):
     admin_order_details_per_hour: int = Field(default=1_200, ge=100, le=100_000)
     staff_exports_per_hour: int = Field(default=5, ge=1, le=100)
     staff_export_rows_per_day: int = Field(default=2_000, ge=500, le=100_000)
+    export_temp_dir: Path = Path(gettempdir())
     audit_detail_dedup_seconds: int = Field(default=600, ge=60, le=86_400)
     audit_detail_retention_days: int = Field(default=90, ge=7, le=365)
     audit_general_retention_days: int = Field(default=365, ge=90, le=3_650)
